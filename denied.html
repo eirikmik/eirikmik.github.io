@@ -280,7 +280,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
 // ============================================================
@@ -341,8 +341,8 @@ let levelObjects = [];
 // Player flashlight
 const flashlight = new THREE.SpotLight(0xffeedd, 15, 40, Math.PI/5, 0.4, 1.5);
 flashlight.castShadow = true;
-flashlight.shadow.mapSize.width = 1024;
-flashlight.shadow.mapSize.height = 1024;
+flashlight.shadow.mapSize.width = 512;
+flashlight.shadow.mapSize.height = 512;
 flashlight.shadow.camera.near = 0.5;
 flashlight.shadow.camera.far = 40;
 camera.add(flashlight);
@@ -423,7 +423,6 @@ function buildLevel() {
 
       const mesh = new THREE.Mesh(wallGeo, mat);
       mesh.position.set(wx + CELL / 2, WALL_H / 2, wz + CELL / 2);
-      mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
       levelObjects.push(mesh);
@@ -459,9 +458,14 @@ function buildLevel() {
   scene.add(ceil);
   levelObjects.push(ceil);
 
-  // Point lights for this level
-  for (const [lx, ly, lz] of lvl.pointLights) {
-    const pl = new THREE.PointLight(0x4466aa, 8, 30, 1.5);
+  // Point lights for this level (limit count, boost range to compensate)
+  const maxLights = 4;
+  const lights = lvl.pointLights;
+  const step = lights.length > maxLights ? Math.ceil(lights.length / maxLights) : 1;
+  const intensityBoost = step > 1 ? step * 0.7 : 1;
+  for (let li = 0; li < lights.length; li += step) {
+    const [lx, ly, lz] = lights[li];
+    const pl = new THREE.PointLight(0x4466aa, 8 * intensityBoost, 30 * Math.sqrt(intensityBoost), 1.5);
     pl.position.set(lx * CELL, ly, lz * CELL);
     scene.add(pl);
     levelObjects.push(pl);
@@ -960,10 +964,9 @@ function createOptimusPrisme() {
   // Store references for animation
   model.userData = { arms, legs, headGroup, torso, waist };
 
-  // Set all meshes to cast shadows
+  // Enemies receive shadows but don't cast (major perf win on Edge/Windows)
   model.traverse(child => {
     if (child.isMesh) {
-      child.castShadow = true;
       child.receiveShadow = true;
     }
   });
