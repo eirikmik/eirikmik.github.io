@@ -68,32 +68,148 @@ canvas { display: block; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.159.0/three.min.js"></script>
 <script>
 // ============================================================
-// MAP DATA (same as original)
+// LEVEL DATA
 // ============================================================
-const MAP = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,2,2,2,0,0,0,0,0,0,3,3,3,0,0,0,0,1],
-  [1,0,0,2,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
-  [1,0,0,2,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,1],
-  [1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,1],
-  [1,0,0,3,3,3,0,0,0,0,0,0,0,2,2,2,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+const LEVELS = [
+  {
+    name: 'The Compound',
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,2,2,2,0,0,0,0,0,0,3,3,3,0,0,0,0,1],
+      [1,0,0,2,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+      [1,0,0,2,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,1],
+      [1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,1],
+      [1,0,0,3,3,3,0,0,0,0,0,0,0,2,2,2,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 2, y: 2 },
+    playerAmmo: 50,
+    enemySpots: [
+      [5,10],[14,5],[10,14],[17,17],[9,9],
+      [3,16],[16,3],[14,14],[5,5],[10,2],
+      [17,10],[2,10],[9,17],[15,9],[6,15],
+    ],
+    pointLights: [
+      [9.5, 2, 9.5],
+      [3, 2, 3],
+      [16, 2, 16],
+      [3, 2, 16],
+      [16, 2, 3],
+    ],
+    prismPos: { x: 9.5, z: 9.5 },
+  },
+  {
+    name: 'The Corridors',
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+      [1,0,0,0,2,0,0,3,3,3,3,3,0,0,2,0,0,0,0,1],
+      [1,1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,3,0,0,4,4,0,0,0,4,4,0,0,3,0,0,0,1],
+      [1,0,0,3,0,0,4,0,0,0,0,0,4,0,0,3,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,1,1,0,0,0,0,0,0,2,2,0,0,0,0,0,0,1,1,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,3,0,0,4,0,0,0,0,0,4,0,0,3,0,0,0,1],
+      [1,0,0,3,0,0,4,4,0,0,0,4,4,0,0,3,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,1],
+      [1,0,0,0,2,0,0,3,3,3,3,3,0,0,2,0,0,0,0,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 2, y: 2 },
+    playerAmmo: 40,
+    enemySpots: [
+      [5,1],[14,1],[9,5],[5,8],[14,8],
+      [2,5],[17,5],[9,9],[2,11],[17,11],
+      [5,12],[14,12],[9,15],[2,17],[17,17],
+      [7,3],[12,3],[9,11],
+    ],
+    pointLights: [
+      [9.5, 2, 9.5],
+      [2, 2, 2],
+      [17, 2, 17],
+      [2, 2, 17],
+      [17, 2, 2],
+      [9.5, 2, 3],
+      [9.5, 2, 16],
+    ],
+    prismPos: { x: 9.5, z: 9.5 },
+  },
+  {
+    name: 'The Arena',
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,1],
+      [1,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,3,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,4,0,0,0,4,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,4,0,0,0,0,0,4,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,4,0,0,0,0,0,4,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,4,0,0,0,4,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,3,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,1],
+      [1,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 2, y: 2 },
+    playerAmmo: 60,
+    enemySpots: [
+      [5,2],[18,2],[11,5],[5,7],[18,7],
+      [2,11],[21,11],[11,11],[2,15],[21,15],
+      [5,17],[18,17],[11,19],[8,9],[14,9],
+      [8,14],[14,14],[11,2],[11,21],[3,5],
+      [20,5],[3,18],
+    ],
+    pointLights: [
+      [11.5, 2, 11.5],
+      [3, 2, 3],
+      [20, 2, 20],
+      [3, 2, 20],
+      [20, 2, 3],
+      [11.5, 2, 3],
+      [11.5, 2, 20],
+      [3, 2, 11.5],
+      [20, 2, 11.5],
+    ],
+    prismPos: { x: 11.5, z: 11.5 },
+  },
 ];
-const MAP_W = MAP[0].length;
-const MAP_H = MAP.length;
+
+let currentLevel = 0;
+let MAP = LEVELS[0].map;
+let MAP_W = MAP[0].length;
+let MAP_H = MAP.length;
 const CELL = 4; // world units per cell
 const WALL_H = 4;
 
@@ -219,19 +335,8 @@ scene.add(ambientLight);
 const hemiLight = new THREE.HemisphereLight(0x3344aa, 0x221111, 0.5);
 scene.add(hemiLight);
 
-// Scattered point lights
-const pointLightPositions = [
-  [9.5*CELL, 2, 9.5*CELL],
-  [3*CELL, 2, 3*CELL],
-  [16*CELL, 2, 16*CELL],
-  [3*CELL, 2, 16*CELL],
-  [16*CELL, 2, 3*CELL],
-];
-for (const [x, y, z] of pointLightPositions) {
-  const pl = new THREE.PointLight(0x4466aa, 8, 30, 1.5);
-  pl.position.set(x, y, z);
-  scene.add(pl);
-}
+// Level-specific objects tracked for cleanup
+let levelObjects = [];
 
 // Player flashlight
 const flashlight = new THREE.SpotLight(0xffeedd, 15, 40, Math.PI/5, 0.4, 1.5);
@@ -249,7 +354,38 @@ scene.add(camera);
 // ============================================================
 // LEVEL GEOMETRY
 // ============================================================
+function clearLevel() {
+  for (const obj of levelObjects) {
+    scene.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  }
+  levelObjects = [];
+  // Remove enemy models and shards
+  for (const e of enemies) {
+    if (e.model) scene.remove(e.model);
+  }
+  for (const s of shardPool) scene.remove(s);
+  shardPool.length = 0;
+  enemies = [];
+  if (window._prism) {
+    window._prism = null;
+  }
+}
+
+function loadLevelData(levelIndex) {
+  const lvl = LEVELS[levelIndex];
+  MAP = lvl.map;
+  MAP_W = MAP[0].length;
+  MAP_H = MAP.length;
+}
+
 function buildLevel() {
+  const lvl = LEVELS[currentLevel];
+
   // Create wall textures as Three.js textures
   const wallMaterials = {};
   for (const [wallType, col] of Object.entries(WALL_COLORS)) {
@@ -280,6 +416,7 @@ function buildLevel() {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+      levelObjects.push(mesh);
     }
   }
 
@@ -296,6 +433,7 @@ function buildLevel() {
   floor.position.set(MAP_W * CELL / 2, 0, MAP_H * CELL / 2);
   floor.receiveShadow = true;
   scene.add(floor);
+  levelObjects.push(floor);
 
   // Ceiling
   const ceilGeo = new THREE.PlaneGeometry(MAP_W * CELL, MAP_H * CELL);
@@ -309,9 +447,18 @@ function buildLevel() {
   ceil.rotation.x = Math.PI / 2;
   ceil.position.set(MAP_W * CELL / 2, WALL_H, MAP_H * CELL / 2);
   scene.add(ceil);
+  levelObjects.push(ceil);
 
-  // ========== GIANT FLOATING PRISM (center of map) ==========
-  const prismCX = 9.5 * CELL, prismCZ = 9.5 * CELL;
+  // Point lights for this level
+  for (const [lx, ly, lz] of lvl.pointLights) {
+    const pl = new THREE.PointLight(0x4466aa, 8, 30, 1.5);
+    pl.position.set(lx * CELL, ly, lz * CELL);
+    scene.add(pl);
+    levelObjects.push(pl);
+  }
+
+  // ========== GIANT FLOATING PRISM ==========
+  const prismCX = lvl.prismPos.x * CELL, prismCZ = lvl.prismPos.z * CELL;
   const prismH = 2.5;
   const prismGeo = new THREE.ConeGeometry(0.8, prismH, 6, 1);
   const prismGeo2 = new THREE.ConeGeometry(0.8, prismH, 6, 1);
@@ -360,6 +507,7 @@ function buildLevel() {
   scene.add(prismLight2);
 
   window._prism = { group: prismGroup, core, light: prismLight, light2: prismLight2 };
+  levelObjects.push(prismGroup, prismLight, prismLight2);
 }
 
 // ============================================================
@@ -898,11 +1046,6 @@ const ENEMY_ATTACK_RANGE = 1.5;
 const ENEMY_ATTACK_COOL = 60;
 const ENEMY_HP = 3;
 
-const enemySpots = [
-  [5,10],[14,5],[10,14],[17,17],[9,9],
-  [3,16],[16,3],[14,14],[5,5],[10,2],
-  [17,10],[2,10],[9,17],[15,9],[6,15],
-];
 
 // Crystal shard pool for death effects
 const shardPool = [];
@@ -934,7 +1077,8 @@ function spawnEnemies() {
   shardPool.length = 0;
 
   enemies = [];
-  for (const [x, y] of enemySpots) {
+  const spots = LEVELS[currentLevel].enemySpots;
+  for (const [x, y] of spots) {
     if (MAP[y][x] === 0) {
       const model = enemyPrototype.clone();
       // Deep clone materials so pain flash works per-enemy
@@ -1016,12 +1160,18 @@ function showMessage(lines) {
   msgEl.style.display = 'block';
 }
 
-function startGame() {
+function startGame(levelIndex) {
+  if (levelIndex !== undefined) currentLevel = levelIndex;
+  const lvl = LEVELS[currentLevel];
+  clearLevel();
+  loadLevelData(currentLevel);
   player = {
-    x: 2, y: 2, angle: 0, pitch: 0, health: 100, ammo: 50,
+    x: lvl.playerStart.x, y: lvl.playerStart.y, angle: 0, pitch: 0,
+    health: 100, ammo: lvl.playerAmmo,
     kills: 0, shootCool: 0, bob: 0, hurt: 0, recoil: 0,
     jumpVel: 0, jumpY: 0,
   };
+  buildLevel();
   spawnEnemies();
   gameState = 'playing';
   startEl.style.display = 'none';
@@ -1030,7 +1180,7 @@ function startGame() {
 }
 
 document.addEventListener('click', () => {
-  if (gameState === 'menu') startGame();
+  if (gameState === 'menu') startGame(0);
 });
 renderer.domElement.addEventListener('click', () => {
   if (!locked && gameState !== 'menu') renderer.domElement.requestPointerLock();
@@ -1230,7 +1380,7 @@ function update(dt) {
           setTimeout(() => {
             document.addEventListener('click', function restart() {
               document.removeEventListener('click', restart);
-              startGame();
+              startGame(currentLevel);
             }, { once: false });
           }, 500);
         }
@@ -1278,18 +1428,34 @@ function update(dt) {
 
   // --- Win condition ---
   if (enemies.length > 0 && enemies.every(e => e.dead)) {
-    gameState = 'win';
-    showMessage([
-      { text: 'LEVEL COMPLETE!' },
-      { text: 'Kills: ' + player.kills, style: { fontSize: '24px' } }
-    ]);
-    document.exitPointerLock();
-    setTimeout(() => {
-      document.addEventListener('click', function restart() {
-        document.removeEventListener('click', restart);
-        startGame();
-      }, { once: false });
-    }, 500);
+    if (currentLevel < LEVELS.length - 1) {
+      gameState = 'win';
+      showMessage([
+        { text: 'LEVEL ' + (currentLevel + 1) + ' COMPLETE!' },
+        { text: 'Click to continue to ' + LEVELS[currentLevel + 1].name, style: { fontSize: '24px', color: '#aaa' } }
+      ]);
+      document.exitPointerLock();
+      setTimeout(() => {
+        document.addEventListener('click', function nextLevel() {
+          document.removeEventListener('click', nextLevel);
+          startGame(currentLevel + 1);
+        }, { once: false });
+      }, 500);
+    } else {
+      gameState = 'win';
+      showMessage([
+        { text: 'YOU WIN!', style: { color: '#0f0', textShadow: '0 0 20px #0f0' } },
+        { text: 'All levels complete!', style: { fontSize: '24px', color: '#aaa' } },
+        { text: 'Click to play again', style: { fontSize: '20px', color: '#888' } }
+      ]);
+      document.exitPointerLock();
+      setTimeout(() => {
+        document.addEventListener('click', function restart() {
+          document.removeEventListener('click', restart);
+          startGame(0);
+        }, { once: false });
+      }, 500);
+    }
   }
 
   // --- Update shards ---
@@ -1337,11 +1503,19 @@ function update(dt) {
 // ============================================================
 const miniCanvas = document.getElementById('minimap');
 const miniCtx = miniCanvas.getContext('2d');
-const MINI_CELL = 8;
+
+function getMiniCell() {
+  return Math.floor(160 / Math.max(MAP_W, MAP_H));
+}
 
 function drawMinimap() {
+  const MINI_CELL = getMiniCell();
+  const mw = MAP_W * MINI_CELL;
+  const mh = MAP_H * MINI_CELL;
+  miniCanvas.width = mw;
+  miniCanvas.height = mh;
   miniCtx.fillStyle = '#000';
-  miniCtx.fillRect(0, 0, 160, 160);
+  miniCtx.fillRect(0, 0, mw, mh);
   for (let r = 0; r < MAP_H; r++) {
     for (let c = 0; c < MAP_W; c++) {
       if (MAP[r][c] !== 0) {
