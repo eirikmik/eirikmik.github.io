@@ -265,7 +265,7 @@ function buildLevel() {
     });
   }
 
-  // Build walls - only add visible faces
+  // Build walls as solid boxes
   for (let row = 0; row < MAP_H; row++) {
     for (let col = 0; col < MAP_W; col++) {
       const wallType = MAP[row][col];
@@ -274,37 +274,12 @@ function buildLevel() {
       const wz = row * CELL;
       const mat = wallMaterials[wallType];
 
-      // Check 4 neighbors for visible faces
-      const neighbors = [
-        { dr: 0, dc: -1, axis: 'x', sign: -1 }, // left face (-x)
-        { dr: 0, dc: 1, axis: 'x', sign: 1 },   // right face (+x)
-        { dr: -1, dc: 0, axis: 'z', sign: -1 },  // front face (-z)
-        { dr: 1, dc: 0, axis: 'z', sign: 1 },    // back face (+z)
-      ];
-      for (const n of neighbors) {
-        const nr = row + n.dr, nc = col + n.dc;
-        if (nr >= 0 && nr < MAP_H && nc >= 0 && nc < MAP_W && MAP[nr][nc] !== 0) continue;
-        // This face is visible
-        const geo = new THREE.PlaneGeometry(CELL, WALL_H);
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        if (n.axis === 'x') {
-          mesh.position.set(wx + (n.sign > 0 ? CELL : 0), WALL_H / 2, wz + CELL / 2);
-          mesh.rotation.y = n.sign > 0 ? -Math.PI / 2 : Math.PI / 2;
-        } else {
-          mesh.position.set(wx + CELL / 2, WALL_H / 2, wz + (n.sign > 0 ? CELL : 0));
-          mesh.rotation.y = n.sign > 0 ? Math.PI : 0;
-        }
-        scene.add(mesh);
-      }
-      // Top face
-      const topGeo = new THREE.PlaneGeometry(CELL, CELL);
-      const topMesh = new THREE.Mesh(topGeo, mat);
-      topMesh.rotation.x = Math.PI / 2;
-      topMesh.position.set(wx + CELL / 2, WALL_H, wz + CELL / 2);
-      topMesh.receiveShadow = true;
-      scene.add(topMesh);
+      const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(wx + CELL / 2, WALL_H / 2, wz + CELL / 2);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
     }
   }
 
@@ -952,7 +927,6 @@ function spawnEnemies() {
   // Remove old models
   for (const e of enemies) {
     if (e.model) scene.remove(e.model);
-    if (e.visorLight) scene.remove(e.visorLight);
   }
   // Remove old shards
   for (const s of shardPool) scene.remove(s);
@@ -974,15 +948,10 @@ function spawnEnemies() {
       model.position.set(wx, 0, wz);
       scene.add(model);
 
-      // Visor glow light
-      const visorLight = new THREE.PointLight(0x00ffff, 2, 8, 2);
-      visorLight.position.set(wx, 2.5, wz);
-      scene.add(visorLight);
-
       enemies.push({
         x: x + 0.5, y: y + 0.5, hp: ENEMY_HP, cooldown: 0,
         state: 'idle', pain: 0, dead: false, deathTimer: 0,
-        model, visorLight, walkPhase: Math.random() * Math.PI * 2,
+        model, walkPhase: Math.random() * Math.PI * 2,
         origMaterials: null, // will be set on first pain
       });
     }
@@ -1170,7 +1139,6 @@ function update(dt) {
         player.kills++;
         // Shatter effect
         closestEnemy.model.visible = false;
-        closestEnemy.visorLight.intensity = 0;
         spawnShards(
           closestEnemy.model.position.x,
           closestEnemy.model.position.z
@@ -1257,9 +1225,6 @@ function update(dt) {
     const wx = e.x * CELL;
     const wz = e.y * CELL;
     e.model.position.set(wx, 0, wz);
-    e.visorLight.position.set(wx, 2.5, wz);
-    // Only show visor light if enemy is visible to player (prevents light bleeding through walls)
-    e.visorLight.intensity = canSee(player.x, player.y, e.x, e.y) ? 2 : 0;
 
     // Face player
     const faceAngle = Math.atan2(
