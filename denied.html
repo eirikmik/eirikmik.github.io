@@ -110,6 +110,7 @@ const LEVELS = [
       [16, 2, 3],
     ],
     prismPos: { x: 9.5, z: 9.5 },
+    healthKits: [[17,1],[1,17],[8,13]],
   },
   {
     name: 'The Corridors',
@@ -153,6 +154,7 @@ const LEVELS = [
       [9.5, 2, 16],
     ],
     prismPos: { x: 9.5, z: 9.5 },
+    healthKits: [[1,1],[17,18],[9,11]],
   },
   {
     name: 'The Arena',
@@ -203,6 +205,7 @@ const LEVELS = [
       [20, 2, 11.5],
     ],
     prismPos: { x: 11.5, z: 11.5 },
+    healthKits: [[1,1],[22,22],[11,3],[11,20]],
   },
 ];
 
@@ -381,6 +384,10 @@ function clearLevel() {
   }
   shardPool.length = 0;
   enemies = [];
+  for (const kit of healthKits) {
+    if (kit.model) scene.remove(kit.model);
+  }
+  healthKits = [];
   if (window._prism) {
     window._prism = null;
   }
@@ -1059,6 +1066,52 @@ const ENEMY_ATTACK_RANGE = 0.8;
 const ENEMY_ATTACK_COOL = 60;
 const ENEMY_HP = 3;
 
+// Health kits
+let healthKits = [];
+const HEALTH_KIT_HEAL = 15;
+const HEALTH_KIT_RANGE = 0.8;
+
+function createHealthKitModel() {
+  const group = new THREE.Group();
+  // White box
+  const boxGeo = new THREE.BoxGeometry(0.4, 0.25, 0.4);
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4, metalness: 0.1 });
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  group.add(box);
+  // Red cross (horizontal bar)
+  const barH = new THREE.Mesh(
+    new THREE.BoxGeometry(0.25, 0.02, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xaa0000, emissiveIntensity: 0.5, roughness: 0.3 })
+  );
+  barH.position.set(0, 0.13, 0);
+  group.add(barH);
+  // Red cross (vertical bar)
+  const barV = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.02, 0.25),
+    new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xaa0000, emissiveIntensity: 0.5, roughness: 0.3 })
+  );
+  barV.position.set(0, 0.13, 0);
+  group.add(barV);
+  return group;
+}
+
+function spawnHealthKits() {
+  for (const kit of healthKits) {
+    if (kit.model) scene.remove(kit.model);
+  }
+  healthKits = [];
+  const spots = LEVELS[currentLevel].healthKits || [];
+  for (const [x, y] of spots) {
+    if (MAP[y][x] === 0) {
+      const model = createHealthKitModel();
+      const wx = (x + 0.5) * CELL;
+      const wz = (y + 0.5) * CELL;
+      model.position.set(wx, 0.15, wz);
+      scene.add(model);
+      healthKits.push({ x: x + 0.5, y: y + 0.5, model, picked: false });
+    }
+  }
+}
 
 // Crystal shard pool for death effects
 const shardPool = [];
@@ -1195,6 +1248,7 @@ function startGame(levelIndex) {
   };
   buildLevel();
   spawnEnemies();
+  spawnHealthKits();
   deadCount = 0;
   gameState = 'playing';
   // Resize minimap canvas once per level
@@ -1277,6 +1331,21 @@ function update(dt) {
     const ny = player.y + my;
     if (MAP[Math.floor(player.y)][Math.floor(nx)] === 0) player.x = nx;
     if (MAP[Math.floor(ny)][Math.floor(player.x)] === 0) player.y = ny;
+  }
+
+  // --- Health kit pickup & animation ---
+  for (const kit of healthKits) {
+    if (kit.picked) continue;
+    // Bobbing
+    kit.model.position.y = 0.15 + Math.sin(Date.now() * 0.003) * 0.08;
+    kit.model.rotation.y += dt * 1.5;
+    // Pickup check
+    const kdx = player.x - kit.x, kdy = player.y - kit.y;
+    if (kdx * kdx + kdy * kdy < HEALTH_KIT_RANGE * HEALTH_KIT_RANGE && player.health < 100) {
+      kit.picked = true;
+      scene.remove(kit.model);
+      player.health = Math.min(100, player.health + HEALTH_KIT_HEAL);
+    }
   }
 
   // --- Camera ---
@@ -1589,6 +1658,13 @@ function drawMinimap() {
     player.y * MINI_CELL + Math.sin(player.angle) * 8
   );
   miniCtx.stroke();
+  // Health kits
+  for (const kit of healthKits) {
+    if (kit.picked) continue;
+    miniCtx.fillStyle = '#fff';
+    miniCtx.fillRect(kit.x * MINI_CELL - 2, kit.y * MINI_CELL - 1, 4, 2);
+    miniCtx.fillRect(kit.x * MINI_CELL - 1, kit.y * MINI_CELL - 2, 2, 4);
+  }
   // Enemies
   for (const e of enemies) {
     if (e.dead) continue;
