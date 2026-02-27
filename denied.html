@@ -1027,7 +1027,9 @@ function startGame() {
   renderer.domElement.requestPointerLock();
 }
 
-startEl.addEventListener('click', startGame);
+document.addEventListener('click', () => {
+  if (gameState === 'menu') startGame();
+});
 
 // ============================================================
 // DEATH SHATTER EFFECT
@@ -1065,10 +1067,10 @@ function update(dt) {
   // --- Player movement ---
   let mx = 0, my = 0;
   const cos = Math.cos(player.angle), sin = Math.sin(player.angle);
-  if (keys['w']) { mx += cos; my += sin; }
-  if (keys['s']) { mx -= cos; my -= sin; }
-  if (keys['a']) { mx += sin; my -= cos; }
-  if (keys['d']) { mx -= sin; my += cos; }
+  if (keys['w'] || keys['arrowup']) { mx += cos; my += sin; }
+  if (keys['s'] || keys['arrowdown']) { mx -= cos; my -= sin; }
+  if (keys['a'] || keys['arrowleft']) { mx += sin; my -= cos; }
+  if (keys['d'] || keys['arrowright']) { mx -= sin; my += cos; }
   const len = Math.sqrt(mx * mx + my * my);
   if (len > 0) {
     mx = (mx / len) * MOVE_SPEED * dt;
