@@ -1258,6 +1258,8 @@ function update(dt) {
     const wz = e.y * CELL;
     e.model.position.set(wx, 0, wz);
     e.visorLight.position.set(wx, 2.5, wz);
+    // Only show visor light if enemy is visible to player (prevents light bleeding through walls)
+    e.visorLight.intensity = canSee(player.x, player.y, e.x, e.y) ? 2 : 0;
 
     // Face player
     const faceAngle = Math.atan2(
