@@ -364,11 +364,21 @@ function clearLevel() {
     }
   }
   levelObjects = [];
-  // Remove enemy models and shards
+  // Remove enemy models (dispose cloned materials) and shards
   for (const e of enemies) {
-    if (e.model) scene.remove(e.model);
+    if (e.model) {
+      e.model.traverse(child => {
+        if (child.isMesh) {
+          if (child.material) child.material.dispose();
+        }
+      });
+      scene.remove(e.model);
+    }
   }
-  for (const s of shardPool) scene.remove(s);
+  for (const s of shardPool) {
+    s.material.dispose();
+    scene.remove(s);
+  }
   shardPool.length = 0;
   enemies = [];
   if (window._prism) {
@@ -401,7 +411,8 @@ function buildLevel() {
     });
   }
 
-  // Build walls as solid boxes
+  // Build walls as solid boxes (shared geometry)
+  const wallGeo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
   for (let row = 0; row < MAP_H; row++) {
     for (let col = 0; col < MAP_W; col++) {
       const wallType = MAP[row][col];
@@ -410,8 +421,7 @@ function buildLevel() {
       const wz = row * CELL;
       const mat = wallMaterials[wallType];
 
-      const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = new THREE.Mesh(wallGeo, mat);
       mesh.position.set(wx + CELL / 2, WALL_H / 2, wz + CELL / 2);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -1042,7 +1052,7 @@ const ROT_SPEED = 0.003;
 // ============================================================
 let enemies = [];
 const ENEMY_SPEED = 1.2;
-const ENEMY_ATTACK_RANGE = 1.5;
+const ENEMY_ATTACK_RANGE = 0.8;
 const ENEMY_ATTACK_COOL = 60;
 const ENEMY_HP = 3;
 
@@ -1081,10 +1091,12 @@ function spawnEnemies() {
   for (const [x, y] of spots) {
     if (MAP[y][x] === 0) {
       const model = enemyPrototype.clone();
-      // Deep clone materials so pain flash works per-enemy
+      // Deep clone materials so pain flash works per-enemy, cache mesh list
+      const meshes = [];
       model.traverse(child => {
         if (child.isMesh) {
           child.material = child.material.clone();
+          meshes.push(child);
         }
       });
       setupModelUserData(model);
@@ -1096,8 +1108,8 @@ function spawnEnemies() {
       enemies.push({
         x: x + 0.5, y: y + 0.5, hp: ENEMY_HP, cooldown: 0,
         state: 'idle', pain: 0, dead: false, deathTimer: 0,
-        model, walkPhase: Math.random() * Math.PI * 2,
-        origMaterials: null, // will be set on first pain
+        model, meshes, walkPhase: Math.random() * Math.PI * 2,
+        origMaterials: null, losFrame: 0,
       });
     }
   }
@@ -1144,9 +1156,13 @@ function canSee(x1, y1, x2, y2) {
 // GAME STATE
 // ============================================================
 let gameState = 'menu';
+let deadCount = 0;
 const msgEl = document.getElementById('msg');
 const startEl = document.getElementById('start');
 const damageFlash = document.getElementById('damageFlash');
+const hpEl = document.getElementById('hp');
+const ammoEl = document.getElementById('ammo');
+const killsEl = document.getElementById('kills');
 
 function showMessage(lines) {
   while (msgEl.firstChild) msgEl.removeChild(msgEl.firstChild);
@@ -1173,7 +1189,27 @@ function startGame(levelIndex) {
   };
   buildLevel();
   spawnEnemies();
+  deadCount = 0;
   gameState = 'playing';
+  // Resize minimap canvas once per level
+  const MINI_CELL = getMiniCell();
+  miniCanvas.width = MAP_W * MINI_CELL;
+  miniCanvas.height = MAP_H * MINI_CELL;
+  // Render static wall layer to offscreen canvas
+  miniWallCanvas = document.createElement('canvas');
+  miniWallCanvas.width = miniCanvas.width;
+  miniWallCanvas.height = miniCanvas.height;
+  const mwCtx = miniWallCanvas.getContext('2d');
+  mwCtx.fillStyle = '#000';
+  mwCtx.fillRect(0, 0, miniWallCanvas.width, miniWallCanvas.height);
+  for (let r = 0; r < MAP_H; r++) {
+    for (let c = 0; c < MAP_W; c++) {
+      if (MAP[r][c] !== 0) {
+        mwCtx.fillStyle = '#555';
+        mwCtx.fillRect(c * MINI_CELL, r * MINI_CELL, MINI_CELL, MINI_CELL);
+      }
+    }
+  }
   startEl.style.display = 'none';
   msgEl.style.display = 'none';
   renderer.domElement.requestPointerLock();
@@ -1250,7 +1286,6 @@ function update(dt) {
   const bobOffset = len > 0 ? Math.sin(player.bob) * 0.06 : 0;
   const eyeHeight = WALL_H * 0.45 + bobOffset + player.jumpY;
   camera.position.set(player.x * CELL, eyeHeight, player.y * CELL);
-  camera.rotation.order = 'YXZ';
   camera.rotation.y = -player.angle - Math.PI / 2;
   camera.rotation.x = player.pitch;
 
@@ -1303,6 +1338,7 @@ function update(dt) {
         closestEnemy.dead = true;
         closestEnemy.deathTimer = 3;
         player.kills++;
+        deadCount++;
         // Shatter effect
         closestEnemy.model.visible = false;
         spawnShards(
@@ -1320,41 +1356,45 @@ function update(dt) {
       continue;
     }
 
-    // Pain flash
+    // Pain flash (uses cached meshes array)
     if (e.pain > 0) {
       e.pain -= dt;
-      e.model.traverse(child => {
-        if (child.isMesh && child.material) {
-          child.material.emissive = child.material.emissive || new THREE.Color();
-          if (e.pain > 0) {
+      for (const child of e.meshes) {
+        child.material.emissive = child.material.emissive || new THREE.Color();
+        if (e.pain > 0) {
+          child.material.emissive.setHex(0xff0000);
+          child.material.emissiveIntensity = 2.0;
+        } else {
+          if (child.name === 'eye') {
+            child.material.emissive.setHex(0x66bbff);
+            child.material.emissiveIntensity = 2.5;
+          } else if (child.name === 'insignia') {
             child.material.emissive.setHex(0xff0000);
-            child.material.emissiveIntensity = 2.0;
+            child.material.emissiveIntensity = 0.8;
+          } else if (child.name === 'elbow' || child.name === 'knee') {
+            child.material.emissive.setHex(0x006666);
+            child.material.emissiveIntensity = 0.6;
           } else {
-            // Restore based on name
-            if (child.name === 'eye') {
-              child.material.emissive.setHex(0x66bbff);
-              child.material.emissiveIntensity = 2.5;
-            } else if (child.name === 'insignia') {
-              child.material.emissive.setHex(0xff0000);
-              child.material.emissiveIntensity = 0.8;
-            } else if (child.name === 'elbow' || child.name === 'knee') {
-              child.material.emissive.setHex(0x006666);
-              child.material.emissiveIntensity = 0.6;
-            } else {
-              child.material.emissive.setHex(0x000000);
-              child.material.emissiveIntensity = 0;
-            }
+            child.material.emissive.setHex(0x000000);
+            child.material.emissiveIntensity = 0;
           }
         }
-      });
+      }
     }
 
     if (e.cooldown > 0) e.cooldown -= dt * 60;
 
     const dx = player.x - e.x, dy = player.y - e.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const distSq = dx * dx + dy * dy;
+    const dist = Math.sqrt(distSq);
 
-    if (dist < 10 && canSee(e.x, e.y, player.x, player.y)) {
+    // Throttle LoS checks for idle enemies (every ~6 frames via staggered timer)
+    if (e.state === 'idle') {
+      e.losFrame = (e.losFrame + 1) % 6;
+      if (e.losFrame === 0 && distSq < 100 && canSee(e.x, e.y, player.x, player.y)) {
+        e.state = 'chase';
+      }
+    } else if (distSq < 100 && canSee(e.x, e.y, player.x, player.y)) {
       e.state = 'chase';
     }
 
@@ -1427,7 +1467,7 @@ function update(dt) {
   }
 
   // --- Win condition ---
-  if (enemies.length > 0 && enemies.every(e => e.dead)) {
+  if (enemies.length > 0 && deadCount >= enemies.length) {
     if (currentLevel < LEVELS.length - 1) {
       gameState = 'win';
       showMessage([
@@ -1463,12 +1503,13 @@ function update(dt) {
     const s = shardPool[i];
     s.userData.life -= dt;
     if (s.userData.life <= 0) {
+      s.material.dispose();
       scene.remove(s);
       shardPool.splice(i, 1);
       continue;
     }
     s.userData.vel.y -= 12 * dt; // gravity
-    s.position.add(s.userData.vel.clone().multiplyScalar(dt));
+    s.position.addScaledVector(s.userData.vel, dt);
     s.rotation.x += dt * 5;
     s.rotation.z += dt * 3;
     if (s.position.y < 0) {
@@ -1485,9 +1526,9 @@ function update(dt) {
   }
 
   // --- HUD ---
-  document.getElementById('hp').textContent = Math.max(0, player.health);
-  document.getElementById('ammo').textContent = player.ammo;
-  document.getElementById('kills').textContent = player.kills + '/' + enemies.length;
+  hpEl.textContent = Math.max(0, player.health);
+  ammoEl.textContent = player.ammo;
+  killsEl.textContent = player.kills + '/' + enemies.length;
 
   // Damage flash
   if (player.hurt > 0) {
@@ -1503,6 +1544,7 @@ function update(dt) {
 // ============================================================
 const miniCanvas = document.getElementById('minimap');
 const miniCtx = miniCanvas.getContext('2d');
+let miniWallCanvas = null;
 
 function getMiniCell() {
   return Math.floor(160 / Math.max(MAP_W, MAP_H));
@@ -1510,17 +1552,20 @@ function getMiniCell() {
 
 function drawMinimap() {
   const MINI_CELL = getMiniCell();
-  const mw = MAP_W * MINI_CELL;
-  const mh = MAP_H * MINI_CELL;
-  miniCanvas.width = mw;
-  miniCanvas.height = mh;
-  miniCtx.fillStyle = '#000';
-  miniCtx.fillRect(0, 0, mw, mh);
-  for (let r = 0; r < MAP_H; r++) {
-    for (let c = 0; c < MAP_W; c++) {
-      if (MAP[r][c] !== 0) {
-        miniCtx.fillStyle = '#555';
-        miniCtx.fillRect(c * MINI_CELL, r * MINI_CELL, MINI_CELL, MINI_CELL);
+  const mw = miniCanvas.width;
+  const mh = miniCanvas.height;
+  // Draw cached static wall layer (or fallback for menu)
+  if (miniWallCanvas) {
+    miniCtx.drawImage(miniWallCanvas, 0, 0);
+  } else {
+    miniCtx.fillStyle = '#000';
+    miniCtx.fillRect(0, 0, mw, mh);
+    for (let r = 0; r < MAP_H; r++) {
+      for (let c = 0; c < MAP_W; c++) {
+        if (MAP[r][c] !== 0) {
+          miniCtx.fillStyle = '#555';
+          miniCtx.fillRect(c * MINI_CELL, r * MINI_CELL, MINI_CELL, MINI_CELL);
+        }
       }
     }
   }
