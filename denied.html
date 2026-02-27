@@ -43,6 +43,7 @@ canvas { display: block; }
   text-shadow: 0 0 20px #f00; text-align: center; cursor: pointer; z-index: 20;
 }
 #start span { font-size: 18px; color: #aaa; display: block; margin-top: 20px; }
+#version { position: absolute; bottom: 70px; right: 10px; font-family: monospace; font-size: 11px; color: #444; z-index: 20; }
 #minimap {
   position: absolute; top: 10px; right: 10px;
   border: 2px solid #888; z-index: 10;
@@ -64,6 +65,7 @@ canvas { display: block; }
 <div id="crosshair">+</div>
 <div id="msg"></div>
 <div id="start">STATUS REPORT: DENIED<span>Click to start<br>WASD = Move | Mouse = Look | Click = Shoot</span></div>
+<div id="version">v1.1.0</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.159.0/three.min.js"></script>
 <script>
@@ -1243,6 +1245,7 @@ function showMessage(lines) {
     msgEl.appendChild(span);
   });
   msgEl.style.display = 'block';
+  document.getElementById('version').style.display = '';
 }
 
 function startGame(levelIndex) {
@@ -1282,6 +1285,7 @@ function startGame(levelIndex) {
   }
   startEl.style.display = 'none';
   msgEl.style.display = 'none';
+  document.getElementById('version').style.display = 'none';
   renderer.domElement.requestPointerLock();
 }
 
