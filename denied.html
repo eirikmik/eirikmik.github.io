@@ -884,6 +884,7 @@ camera.add(muzzleFlash);
 let player = {
   x: 2, y: 2, angle: 0, pitch: 0, health: 100, ammo: 50,
   kills: 0, shootCool: 0, bob: 0, hurt: 0, recoil: 0,
+  jumpVel: 0, jumpY: 0,
 };
 const MOVE_SPEED = 3.0;
 const ROT_SPEED = 0.003;
@@ -1019,6 +1020,7 @@ function startGame() {
   player = {
     x: 2, y: 2, angle: 0, pitch: 0, health: 100, ammo: 50,
     kills: 0, shootCool: 0, bob: 0, hurt: 0, recoil: 0,
+    jumpVel: 0, jumpY: 0,
   };
   spawnEnemies();
   gameState = 'playing';
@@ -1083,8 +1085,17 @@ function update(dt) {
   }
 
   // --- Camera ---
+  // Jump
+  if (keys[' '] && player.jumpY === 0) player.jumpVel = 6;
+  if (player.jumpY > 0 || player.jumpVel > 0) {
+    player.jumpVel -= 20 * dt; // gravity
+    player.jumpY += player.jumpVel * dt;
+    if (player.jumpY <= 0) { player.jumpY = 0; player.jumpVel = 0; }
+    if (player.jumpY > WALL_H * 0.4) { player.jumpY = WALL_H * 0.4; player.jumpVel = 0; }
+  }
+
   const bobOffset = len > 0 ? Math.sin(player.bob) * 0.06 : 0;
-  const eyeHeight = WALL_H * 0.45 + bobOffset;
+  const eyeHeight = WALL_H * 0.45 + bobOffset + player.jumpY;
   camera.position.set(player.x * CELL, eyeHeight, player.y * CELL);
   camera.rotation.order = 'YXZ';
   camera.rotation.y = -player.angle - Math.PI / 2;
@@ -1376,6 +1387,11 @@ window.addEventListener('resize', onResize);
 // GAME LOOP
 // ============================================================
 buildLevel();
+
+// Set initial camera position so the menu screen isn't grey
+camera.position.set(player.x * CELL, WALL_H * 0.45, player.y * CELL);
+camera.rotation.order = 'YXZ';
+camera.rotation.y = -player.angle - Math.PI / 2;
 
 let lastTime = 0;
 function gameLoop(time) {
