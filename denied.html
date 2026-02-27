@@ -418,22 +418,32 @@ function buildLevel() {
     });
   }
 
-  // Build walls as solid boxes (shared geometry)
+  // Build walls as instanced meshes (one draw call per wall type)
   const wallGeo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
+  // Count instances per wall type
+  const wallCounts = {};
   for (let row = 0; row < MAP_H; row++) {
     for (let col = 0; col < MAP_W; col++) {
-      const wallType = MAP[row][col];
-      if (wallType === 0) continue;
-      const wx = col * CELL;
-      const wz = row * CELL;
-      const mat = wallMaterials[wallType];
-
-      const mesh = new THREE.Mesh(wallGeo, mat);
-      mesh.position.set(wx + CELL / 2, WALL_H / 2, wz + CELL / 2);
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-      levelObjects.push(mesh);
+      const wt = MAP[row][col];
+      if (wt !== 0) wallCounts[wt] = (wallCounts[wt] || 0) + 1;
     }
+  }
+  // Create one InstancedMesh per wall type
+  const dummy = new THREE.Object3D();
+  for (const [wallType, count] of Object.entries(wallCounts)) {
+    const instMesh = new THREE.InstancedMesh(wallGeo, wallMaterials[wallType], count);
+    instMesh.receiveShadow = true;
+    let idx = 0;
+    for (let row = 0; row < MAP_H; row++) {
+      for (let col = 0; col < MAP_W; col++) {
+        if (MAP[row][col] !== parseInt(wallType)) continue;
+        dummy.position.set(col * CELL + CELL / 2, WALL_H / 2, row * CELL + CELL / 2);
+        dummy.updateMatrix();
+        instMesh.setMatrixAt(idx++, dummy.matrix);
+      }
+    }
+    scene.add(instMesh);
+    levelObjects.push(instMesh);
   }
 
   // Floor
