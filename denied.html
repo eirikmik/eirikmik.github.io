@@ -1032,6 +1032,9 @@ function startGame() {
 document.addEventListener('click', () => {
   if (gameState === 'menu') startGame();
 });
+renderer.domElement.addEventListener('click', () => {
+  if (!locked && gameState !== 'menu') renderer.domElement.requestPointerLock();
+});
 
 // ============================================================
 // DEATH SHATTER EFFECT
