@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPX-sporvisning</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+
+  #file-input { display: none; }
+  .map-load-btn {
+    position: absolute; top: 10px; right: 62px; z-index: 900;
+    background: #fff; color: #333; border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px; padding: 0 10px; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600;
+    height: 48px; line-height: 48px;
+    box-shadow: none;
+  }
+  .map-load-btn:hover { background: #f4f4f4; }
+
+  #map-container { position: relative; height: 72vh; border-bottom: 2px solid #0f3460; }
+  #map { height: 100%; width: 100%; }
+
+  .drop-overlay {
+    display: none; position: absolute; inset: 0; z-index: 1000;
+    background: rgba(233, 69, 96, 0.15); border: 3px dashed #e94560;
+    justify-content: center; align-items: center;
+    font-size: 1.4rem; color: #e94560; font-weight: 700; pointer-events: none;
+  }
+  .drop-overlay.active { display: flex; }
+
+
+  .avalanche-control {
+    background: rgba(22, 33, 62, 0.95); padding: 10px 14px; border-radius: 8px;
+    border: 1px solid #0f3460; color: #e0e0e0; font-size: 0.8rem; min-width: 180px;
+  }
+  .avalanche-control h4 {
+    margin: 0; color: #e94560; font-size: 0.85rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    user-select: none;
+  }
+  .avalanche-control h4::after { content: '\25B2'; font-size: 0.6rem; }
+  .avalanche-control.collapsed h4::after { content: '\25BC'; }
+  .avalanche-control .ava-body { margin-top: 8px; }
+  .avalanche-control.collapsed .ava-body { display: none; }
+  .avalanche-control input[type=range] { width: 100%; margin-top: 4px; accent-color: #e94560; }
+  .opacity-row { margin-bottom: 8px; }
+  .opacity-row span { font-size: 0.75rem; color: #999; }
+  .legend { margin-top: 8px; border-top: 1px solid #333; padding-top: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 0.75rem; }
+  .legend-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  #stats-section {
+    display: none; padding: 16px 20px; background: #16213e;
+    border-bottom: 2px solid #0f3460;
+  }
+  #stats-section h3 { color: #e94560; margin-bottom: 10px; font-size: 0.95rem; }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;
+  }
+  .stat-card {
+    background: #1a1a2e; padding: 10px 14px; border-radius: 8px; border: 1px solid #0f3460;
+  }
+  .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+  .stat-value { font-size: 1.1rem; font-weight: 700; color: #fff; margin-top: 2px; }
+
+  .zone-group { display: none; margin-top: 14px; }
+  .zone-group h4 { color: #e94560; font-size: 0.85rem; margin-bottom: 8px; }
+  .zone-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+  .zone-card {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid #0f3460;
+    flex: 1; min-width: 120px;
+  }
+  .zone-card .stat-label { color: #ccc; }
+  .zone-card .stat-value { font-size: 1rem; }
+
+  #chart-section { display: none; padding: 16px 20px; background: #1a1a2e; }
+  #chart-section h3 { color: #e94560; margin-bottom: 10px; font-size: 0.95rem; }
+  .chart-container { position: relative; height: 200px; width: 100%; }
+
+  .locate-btn {
+    width: 34px; height: 34px; background: #fff; border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; font-size: 1.2rem; color: #333; line-height: 1;
+  }
+  .locate-btn:hover { background: #f4f4f4; }
+  .locate-btn.locating { color: #e94560; }
+
+  .varsom-control {
+    background: rgba(22, 33, 62, 0.95); border-radius: 8px;
+    border: 1px solid #0f3460; color: #e0e0e0; font-size: 0.8rem;
+    cursor: pointer; user-select: none;
+  }
+  .varsom-badge {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  }
+  .varsom-badge .region-name { font-size: 0.75rem; color: #ccc; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .varsom-badge .danger-label { font-size: 0.7rem; color: #999; }
+  .danger-icon { width: 32px; height: 30px; flex-shrink: 0; }
+  .varsom-badge .danger-icon { width: 36px; height: 34px; }
+  .varsom-expanded {
+    display: none; padding: 10px 12px; border-top: 1px solid #0f3460;
+    position: relative;
+  }
+  .varsom-control.open .varsom-expanded { display: block; }
+  .varsom-control.open { cursor: default; }
+  .varsom-close {
+    position: absolute; top: 6px; right: 6px; background: none; border: none;
+    color: #888; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; line-height: 1;
+  }
+  .varsom-close:hover { color: #e0e0e0; }
+  .varsom-days {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .varsom-day {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.05);
+    min-width: 52px;
+  }
+  .varsom-day .day-name { font-size: 0.7rem; color: #aaa; text-transform: capitalize; }
+  .varsom-day .day-date { font-size: 0.65rem; color: #777; }
+  .varsom-maintext {
+    font-size: 0.72rem; color: #bbb; line-height: 1.4;
+    max-height: 100px; overflow-y: auto; border-top: 1px solid #333;
+    padding-top: 6px; margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<input type="file" id="file-input" accept=".gpx" />
+
+<div id="map-container">
+  <div id="map"></div>
+  <button class="btn map-load-btn" onclick="document.getElementById('file-input').click()">Last inn GPX</button>
+  <div class="drop-overlay" id="drop-overlay">Slipp GPX-fil her</div>
+</div>
+
+<div id="stats-section">
+  <h3>Turstatistikk</h3>
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="zone-group" id="zone-group">
+    <h4>Tid i soner</h4>
+    <div class="zone-cards" id="zone-cards"></div>
+  </div>
+</div>
+
+<div id="chart-section">
+  <h3>Høydeprofil</h3>
+  <div class="chart-container"><canvas id="elevation-chart"></canvas></div>
+  <div id="avalanche-loading" style="display:none; padding: 6px 0; font-size: 0.8rem; color: #999;">Henter skreddata...</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+(function() {
+  const map = L.map('map', { zoomControl: true }).setView([62.5, 10], 6);
+
+  const kartverket = L.tileLayer(
+    'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',
+    { attribution: '&copy; <a href="https://kartverket.no">Kartverket</a>', maxZoom: 18 }
+  );
+  const openTopo = L.tileLayer(
+    'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    { attribution: '&copy; OpenTopoMap', maxZoom: 17 }
+  );
+  kartverket.addTo(map);
+  L.control.layers({ 'Kartverket Topo': kartverket, 'OpenTopoMap': openTopo }).addTo(map);
+
+  // Locate control
+  var locateMarker = null;
+  var LocateControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      var btn = L.DomUtil.create('button', 'locate-btn leaflet-bar');
+      btn.title = 'Vis min posisjon';
+      btn.textContent = '\u2316';
+      L.DomEvent.disableClickPropagation(btn);
+      btn.addEventListener('click', function() {
+        if (!navigator.geolocation) return;
+        btn.classList.add('locating');
+        navigator.geolocation.getCurrentPosition(function(pos) {
+          btn.classList.remove('locating');
+          var ll = [pos.coords.latitude, pos.coords.longitude];
+          map.setView(ll, 13);
+          if (locateMarker) {
+            locateMarker.setLatLng(ll);
+          } else {
+            locateMarker = L.circleMarker(ll, {
+              radius: 8, color: '#e94560', fillColor: '#e94560', fillOpacity: 0.9, weight: 2
+            }).bindPopup('Min posisjon').addTo(map);
+          }
+        }, function() {
+          btn.classList.remove('locating');
+        }, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      return btn;
+    }
+  });
+  new LocateControl().addTo(map);
+
+  // Avalanche WMS overlay — own pane so it stays above base tiles
+  map.createPane('avalanchePane');
+  map.getPane('avalanchePane').style.zIndex = 450;
+  const avalancheLayer = L.tileLayer.wms(
+    'https://gis3.nve.no/arcgis/services/wmts/Bratthet_med_utlop_2024/MapServer/WMSServer',
+    { layers: '6,7,8,9', format: 'image/png', transparent: true, opacity: 0.6, version: '1.1.1', srs: 'EPSG:3857', pane: 'avalanchePane' }
+  );
+
+  // Avalanche control
+  const AvalancheControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function() {
+      var cls = 'avalanche-control leaflet-bar' + (window.innerWidth < 768 ? ' collapsed' : '');
+      const div = L.DomUtil.create('div', cls);
+      const h4 = document.createElement('h4');
+      h4.textContent = 'Skredterreng';
+      h4.addEventListener('click', function() { div.classList.toggle('collapsed'); });
+      div.appendChild(h4);
+
+      const body = document.createElement('div');
+      body.className = 'ava-body';
+
+      const opRow = document.createElement('div');
+      opRow.className = 'opacity-row';
+      const opLabel = document.createElement('span');
+      opLabel.textContent = 'Gjennomsiktighet';
+      opRow.appendChild(opLabel);
+      const slider = document.createElement('input');
+      slider.type = 'range'; slider.id = 'ava-opacity';
+      slider.min = '0'; slider.max = '1'; slider.step = '0.05'; slider.value = '0.6';
+      opRow.appendChild(slider);
+      body.appendChild(opRow);
+
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      const items = [
+        ['#e31a1c', 'L\u00f8sneomr\u00e5de (\u226530\u00b0)'],
+        ['#ffcc00', 'L\u00f8sneomr\u00e5de (bratt)'],
+        ['#33a02c', 'Utl\u00f8psomr\u00e5de (27-30\u00b0)'],
+        ['#6baed6', 'Utl\u00f8pssone (kort)'],
+        ['#3182bd', 'Utl\u00f8pssone (middels)'],
+        ['#08519c', 'Utl\u00f8pssone (lang)']
+      ];
+      items.forEach(function(item) {
+        const row = document.createElement('div');
+        row.className = 'legend-item';
+        const swatch = document.createElement('div');
+        swatch.className = 'legend-swatch';
+        swatch.style.background = item[0];
+        row.appendChild(swatch);
+        row.appendChild(document.createTextNode(item[1]));
+        legend.appendChild(row);
+      });
+      body.appendChild(legend);
+      div.appendChild(body);
+
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+
+      slider.addEventListener('input', function() {
+        avalancheLayer.setOpacity(parseFloat(this.value));
+      });
+      return div;
+    }
+  });
+  new AvalancheControl().addTo(map);
+  avalancheLayer.addTo(map);
+
+
+  // State
+  var currentTrack = null;
+  var trackOutline = null;
+  var hoverMarker = null;
+  var elevationChart = null;
+  var trackCoords = [];
+  var trackTimes = [];
+  var terrainPerPoint = null;
+
+  // Drag and drop
+  var mapContainer = document.getElementById('map-container');
+  var dropOverlay = document.getElementById('drop-overlay');
+
+  ['dragenter', 'dragover'].forEach(function(evt) {
+    mapContainer.addEventListener(evt, function(e) { e.preventDefault(); dropOverlay.classList.add('active'); });
+  });
+  ['dragleave', 'drop'].forEach(function(evt) {
+    mapContainer.addEventListener(evt, function() { dropOverlay.classList.remove('active'); });
+  });
+  mapContainer.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.gpx')) loadFile(file);
+  });
+
+  document.getElementById('file-input').addEventListener('change', function() {
+    if (this.files[0]) loadFile(this.files[0]);
+  });
+
+  function loadFile(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) { processGPX(e.target.result); };
+    reader.readAsText(file);
+  }
+
+  function processGPX(gpxString) {
+    if (trackOutline) { map.removeLayer(trackOutline); trackOutline = null; }
+    if (currentTrack) map.removeLayer(currentTrack);
+    if (hoverMarker) { map.removeLayer(hoverMarker); hoverMarker = null; }
+
+
+    currentTrack = new L.GPX(gpxString, {
+      async: true,
+      polyline_options: { color: '#7b2d8e', weight: 4, opacity: 0.85 },
+      marker_options: {
+        startIconUrl: null, endIconUrl: null, shadowUrl: null,
+        wptIconUrls: { '': null }
+      }
+    });
+
+    currentTrack.on('loaded', function(e) {
+      var gpx = e.target;
+      map.fitBounds(gpx.getBounds(), { padding: [30, 30] });
+
+      // Add dark outline behind the track for contrast
+      var layers = [];
+      gpx.eachLayer(function(layer) {
+        if (layer.getLatLngs) layers.push(layer);
+      });
+      if (layers.length > 0) {
+        var latlngs = layers[0].getLatLngs().flat(Infinity);
+        trackOutline = L.polyline(latlngs, { color: '#fff', weight: 10, opacity: 0.9 }).addTo(map);
+        trackOutline.bringToBack();
+        if (latlngs.length > 0) {
+          L.circleMarker(latlngs[0], { radius: 8, color: '#33a02c', fillColor: '#33a02c', fillOpacity: 0.9 })
+            .bindPopup('Start').addTo(currentTrack);
+          L.circleMarker(latlngs[latlngs.length - 1], { radius: 8, color: '#e31a1c', fillColor: '#e31a1c', fillOpacity: 0.9 })
+            .bindPopup('M\u00e5l').addTo(currentTrack);
+        }
+      }
+
+      populateStats(gpx);
+      buildElevationChart(gpx);
+
+      var center = gpx.getBounds().getCenter();
+      queryVarsomForecast(center.lat, center.lng);
+    });
+
+    currentTrack.addTo(map);
+  }
+
+  function populateStats(gpx) {
+    var hasTime = gpx.get_total_time() > 0;
+    var grid = document.getElementById('stats-grid');
+    grid.textContent = '';
+
+    function addStat(label, value) {
+      var card = document.createElement('div');
+      card.className = 'stat-card';
+      var lbl = document.createElement('div');
+      lbl.className = 'stat-label';
+      lbl.textContent = label;
+      var val = document.createElement('div');
+      val.className = 'stat-value';
+      val.textContent = value;
+      card.appendChild(lbl);
+      card.appendChild(val);
+      grid.appendChild(card);
+    }
+
+    addStat('Distanse', (gpx.get_distance() / 1000).toFixed(2) + ' km');
+    if (hasTime) {
+      addStat('Total tid', formatDuration(gpx.get_total_time()));
+      addStat('Bevegelsestid', formatDuration(gpx.get_moving_time()));
+      addStat('Fart i bevegelse', (gpx.get_moving_speed() * 3.6).toFixed(1) + ' km/t');
+    }
+    addStat('Stigning', gpx.get_elevation_gain().toFixed(0) + ' m');
+    addStat('Fall', gpx.get_elevation_loss().toFixed(0) + ' m');
+    addStat('Min h\u00f8yde', gpx.get_elevation_min().toFixed(0) + ' m');
+    addStat('Maks h\u00f8yde', gpx.get_elevation_max().toFixed(0) + ' m');
+
+    document.getElementById('stats-section').style.display = 'block';
+  }
+
+  function formatDuration(ms) {
+    var s = Math.floor(ms / 1000);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    return h > 0 ? h + 'h ' + m + 'm' : m + 'm ' + sec + 's';
+  }
+
+  function buildElevationChart(gpx) {
+    trackCoords = [];
+    trackTimes = [];
+    var elevData = [];
+    var cumDist = 0;
+
+    gpx.eachLayer(function(layer) {
+      if (!layer.getLatLngs) return;
+      var latlngs = layer.getLatLngs().flat(Infinity);
+      for (var i = 0; i < latlngs.length; i++) {
+        var ll = latlngs[i];
+        if (i > 0) cumDist += latlngs[i - 1].distanceTo(ll);
+        trackCoords.push(ll);
+        var ts = ll.meta && ll.meta.time ? new Date(ll.meta.time).getTime() : NaN;
+        trackTimes.push(Number.isFinite(ts) ? ts : null);
+        elevData.push({ x: cumDist / 1000, y: ll.alt || (ll.meta && ll.meta.ele) || 0 });
+      }
+    });
+
+    if (elevData.length === 0) return;
+
+    var ctx = document.getElementById('elevation-chart').getContext('2d');
+    if (elevationChart) elevationChart.destroy();
+
+    elevationChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: elevData,
+          borderColor: '#33a02c',
+          backgroundColor: 'rgba(51, 160, 44, 0.2)',
+          fill: true, pointRadius: 0, borderWidth: 2, tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: function(items) { return items[0] ? items[0].parsed.x.toFixed(2) + ' km' : ''; },
+              label: function(item) { return item.parsed.y.toFixed(0) + ' m'; },
+              labelColor: function(ctx) {
+                var t = terrainPerPoint ? (terrainPerPoint[ctx.dataIndex] || 'safe') : 'safe';
+                var c = TERRAIN_COLORS[t] || TERRAIN_COLORS.safe;
+                return { borderColor: c.border, backgroundColor: c.border };
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'Distanse (km)', color: '#999' },
+            ticks: { color: '#999' }, grid: { color: '#333' }
+          },
+          y: {
+            title: { display: true, text: 'H\u00f8yde (m)', color: '#999' },
+            ticks: { color: '#999' }, grid: { color: '#333' }
+          }
+        },
+        onHover: function(event, elements) {
+          if (elements.length > 0 && trackCoords.length > 0) {
+            var idx = elements[0].index;
+            if (idx < trackCoords.length) {
+              var ll = trackCoords[idx];
+              if (!hoverMarker) {
+                hoverMarker = L.circleMarker(ll, {
+                  radius: 6, color: '#fff', fillColor: '#e94560', fillOpacity: 1, weight: 2
+                }).addTo(map);
+              } else {
+                hoverMarker.setLatLng(ll);
+              }
+            }
+          }
+        },
+        interaction: { intersect: false, mode: 'index' }
+      }
+    });
+
+    document.getElementById('chart-section').style.display = 'block';
+
+    // Kick off avalanche terrain query
+    queryAvalancheTerrainForTrack(trackCoords, elevData);
+  }
+
+  // Avalanche terrain colors
+  var TERRAIN_COLORS = {
+    release:      { bg: 'rgba(227, 26, 28, 0.3)',  border: 'rgba(227, 26, 28, 0.8)' },
+    short_runout: { bg: 'rgba(107, 174, 214, 0.3)', border: 'rgba(107, 174, 214, 0.8)' },
+    med_runout:   { bg: 'rgba(49, 130, 189, 0.3)',  border: 'rgba(49, 130, 189, 0.8)' },
+    long_runout:  { bg: 'rgba(8, 81, 156, 0.3)',    border: 'rgba(8, 81, 156, 0.8)' },
+    safe:         { bg: 'rgba(51, 160, 44, 0.2)',    border: '#33a02c' }
+  };
+
+  // Priority: release > short > medium > long > safe
+  // Pixel value "1" = no data; values > 1 = actual terrain
+  function classifyIdentifyResult(data) {
+    if (!data || !data.results) return 'safe';
+    var activeLayer = {};
+    data.results.forEach(function(r) {
+      var pv = r.attributes && r.attributes['UniqueValue.Pixel Value'];
+      if (pv && pv !== '1' && pv !== 'NoData') activeLayer[r.layerId] = true;
+    });
+    if (activeLayer[1]) return 'release';
+    if (activeLayer[2]) return 'short_runout';
+    if (activeLayer[3]) return 'med_runout';
+    if (activeLayer[4]) return 'long_runout';
+    return 'safe';
+  }
+
+  function queryAvalancheTerrainForTrack(coords, elevData) {
+    if (coords.length < 2 || !elevationChart) return;
+
+    var loadingEl = document.getElementById('avalanche-loading');
+    loadingEl.style.display = 'block';
+
+    // Compute cumulative distances for sampling
+    var cumDists = [0];
+    for (var i = 1; i < coords.length; i++) {
+      cumDists.push(cumDists[i - 1] + coords[i - 1].distanceTo(coords[i]));
+    }
+    var totalDist = cumDists[cumDists.length - 1];
+
+    // Sample every ~200m
+    var sampleInterval = 200;
+    var sampleIndices = [0];
+    var nextDist = sampleInterval;
+    for (var i = 1; i < coords.length; i++) {
+      if (cumDists[i] >= nextDist) {
+        sampleIndices.push(i);
+        nextDist = cumDists[i] + sampleInterval;
+      }
+    }
+    if (sampleIndices[sampleIndices.length - 1] !== coords.length - 1) {
+      sampleIndices.push(coords.length - 1);
+    }
+
+    // Compute bbox for map extent param
+    var lats = coords.map(function(c) { return c.lat; });
+    var lngs = coords.map(function(c) { return c.lng; });
+    var bbox = [Math.min.apply(null, lngs), Math.min.apply(null, lats),
+                Math.max.apply(null, lngs), Math.max.apply(null, lats)].join(',');
+
+    // Build fetch tasks
+    var tasks = sampleIndices.map(function(idx) {
+      var c = coords[idx];
+      var url = 'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/identify'
+        + '?geometry=' + c.lng + ',' + c.lat
+        + '&geometryType=esriGeometryPoint&sr=4326'
+        + '&layers=all&tolerance=2'
+        + '&mapExtent=' + bbox
+        + '&imageDisplay=400,400,96'
+        + '&returnGeometry=false&f=json';
+      return { idx: idx, url: url };
+    });
+
+    // Run in batches of 10
+    var sampleResults = {}; // idx -> terrain type
+    var batchSize = 10;
+
+    function runBatch(start) {
+      var batch = tasks.slice(start, start + batchSize);
+      if (batch.length === 0) {
+        applyTerrainColors(sampleResults, sampleIndices, coords.length);
+        return;
+      }
+      Promise.all(batch.map(function(task) {
+        return fetch(task.url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) { sampleResults[task.idx] = classifyIdentifyResult(data); })
+          .catch(function() { sampleResults[task.idx] = 'safe'; });
+      })).then(function() { runBatch(start + batchSize); });
+    }
+
+    runBatch(0);
+
+    function applyTerrainColors(results, indices, totalPoints) {
+      // Build per-point terrain array by interpolating between samples
+      terrainPerPoint = new Array(totalPoints);
+      for (var s = 0; s < indices.length; s++) {
+        var startIdx = indices[s];
+        var endIdx = s < indices.length - 1 ? indices[s + 1] : totalPoints - 1;
+        var terrain = results[startIdx] || 'safe';
+        for (var j = startIdx; j <= endIdx; j++) {
+          terrainPerPoint[j] = terrain;
+        }
+      }
+
+      // Apply segment styling for both line and fill color
+      var ds = elevationChart.data.datasets[0];
+      ds.segment = {
+        borderColor: function(ctx) {
+          var t = terrainPerPoint[ctx.p0DataIndex] || 'safe';
+          return TERRAIN_COLORS[t].border;
+        },
+        backgroundColor: function(ctx) {
+          var t = terrainPerPoint[ctx.p0DataIndex] || 'safe';
+          return TERRAIN_COLORS[t].bg;
+        }
+      };
+
+      elevationChart.update();
+      loadingEl.style.display = 'none';
+
+      // Compute time spent in each terrain zone
+      addTerrainTimeStats(terrainPerPoint);
+    }
+  }
+
+  var TERRAIN_LABELS = {
+    release: 'Løsneområde',
+    short_runout: 'Utløp (kort)',
+    med_runout: 'Utløp (middels)',
+    long_runout: 'Utløp (lang)'
+  };
+
+  var TERRAIN_CARD_COLORS = {
+    release:      { bg: 'rgba(227, 26, 28, 0.25)', border: '#e31a1c' },
+    short_runout: { bg: 'rgba(107, 174, 214, 0.25)', border: '#6baed6' },
+    med_runout:   { bg: 'rgba(49, 130, 189, 0.25)', border: '#3182bd' },
+    long_runout:  { bg: 'rgba(8, 81, 156, 0.25)', border: '#08519c' }
+  };
+
+  function addTerrainTimeStats(terrainPerPoint) {
+    var hasTime = false;
+    if (trackTimes.length > 1 && Number.isFinite(trackTimes[0]) && Number.isFinite(trackTimes[trackTimes.length - 1])) {
+      hasTime = (trackTimes[trackTimes.length - 1] - trackTimes[0]) > 60000; // >1 min span
+    }
+
+    var zones = ['release', 'short_runout', 'med_runout', 'long_runout'];
+    var zoneData = {};
+
+    if (hasTime) {
+      // Sum time per zone
+      var timeMs = { release: 0, short_runout: 0, med_runout: 0, long_runout: 0 };
+      for (var i = 1; i < terrainPerPoint.length; i++) {
+        var t = terrainPerPoint[i];
+        if (t && t !== 'safe' && trackTimes[i] !== null && trackTimes[i - 1] !== null) {
+          var dt = trackTimes[i] - trackTimes[i - 1];
+          if (dt > 0 && dt < 3600000) timeMs[t] += dt;
+        }
+      }
+      zones.forEach(function(z) {
+        if (timeMs[z] > 0) zoneData[z] = formatDuration(timeMs[z]);
+      });
+    } else {
+      // Sum distance per zone
+      var distM = { release: 0, short_runout: 0, med_runout: 0, long_runout: 0 };
+      var totalDist = 0;
+      var len = Math.min(terrainPerPoint.length, trackCoords.length);
+      for (var i = 1; i < len; i++) {
+        var d = trackCoords[i - 1].distanceTo(trackCoords[i]);
+        totalDist += d;
+        var t = terrainPerPoint[i];
+        if (t && t !== 'safe' && distM.hasOwnProperty(t)) distM[t] += d;
+      }
+      zones.forEach(function(z) {
+        if (distM[z] > 0) {
+          zoneData[z] = distM[z] >= 1000
+            ? (distM[z] / 1000).toFixed(1) + ' km'
+            : Math.round(distM[z]) + ' m';
+        }
+      });
+    }
+
+    // Render cards
+    var container = document.getElementById('zone-cards');
+    container.textContent = '';
+    var hasAny = false;
+    zones.forEach(function(zone) {
+      if (!zoneData[zone]) return;
+      hasAny = true;
+      var card = document.createElement('div');
+      card.className = 'zone-card';
+      card.style.background = TERRAIN_CARD_COLORS[zone].bg;
+      card.style.borderColor = TERRAIN_CARD_COLORS[zone].border;
+      var lbl = document.createElement('div');
+      lbl.className = 'stat-label';
+      lbl.textContent = TERRAIN_LABELS[zone];
+      var val = document.createElement('div');
+      val.className = 'stat-value';
+      val.textContent = zoneData[zone];
+      card.appendChild(lbl);
+      card.appendChild(val);
+      container.appendChild(card);
+    });
+    if (hasAny) {
+      var group = document.getElementById('zone-group');
+      group.querySelector('h4').textContent = 'Opphold i risikosoner';
+      group.style.display = 'block';
+    }
+  }
+
+  // Varsom avalanche danger widget
+  var DANGER_ICON_URL = 'https://www.varsom.no/Content/Images/AvalancheDangerLevels/level-';
+  var DANGER_LABELS = {
+    0: 'Ikke vurdert', 1: 'Liten', 2: 'Moderat', 3: 'Betydelig', 4: 'Stor', 5: 'Meget stor'
+  };
+  var DAY_NAMES = ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'];
+
+  var varsomControl = null;
+  var varsomRegion = null;
+
+  function createEl(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function dangerIcon(level, className) {
+    var img = document.createElement('img');
+    img.src = DANGER_ICON_URL + level + '.svg';
+    img.alt = DANGER_LABELS[level] || '';
+    img.className = className || 'danger-icon';
+    return img;
+  }
+
+  var VarsomControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd: function() {
+      var div = L.DomUtil.create('div', 'varsom-control leaflet-bar');
+
+      var badge = createEl('div', 'varsom-badge');
+      var badgeIcon = dangerIcon(0, 'danger-icon');
+      badgeIcon.id = 'varsom-badge-icon';
+      badge.appendChild(badgeIcon);
+
+      var badgeInfo = createEl('div');
+      var regionSpan = createEl('div', 'region-name', 'Laster...');
+      regionSpan.id = 'varsom-badge-region';
+      var labelSpan = createEl('div', 'danger-label');
+      labelSpan.id = 'varsom-badge-label';
+      badgeInfo.appendChild(regionSpan);
+      badgeInfo.appendChild(labelSpan);
+      badge.appendChild(badgeInfo);
+
+      var expanded = createEl('div', 'varsom-expanded');
+      var closeBtn = createEl('button', 'varsom-close', '\u00d7');
+      closeBtn.setAttribute('aria-label', 'Lukk');
+      expanded.appendChild(closeBtn);
+      var daysRow = createEl('div', 'varsom-days');
+      daysRow.id = 'varsom-days';
+      var mainText = createEl('div', 'varsom-maintext');
+      mainText.id = 'varsom-maintext';
+      expanded.appendChild(daysRow);
+      expanded.appendChild(mainText);
+
+      div.appendChild(badge);
+      div.appendChild(expanded);
+
+      badge.addEventListener('click', function() {
+        div.classList.toggle('open');
+      });
+      closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        div.classList.remove('open');
+      });
+
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      return div;
+    }
+  });
+
+  function queryVarsomForecast(lat, lon) {
+    if (!varsomControl) {
+      varsomControl = new VarsomControl();
+      varsomControl.addTo(map);
+    }
+
+    var today = new Date();
+    var endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 3);
+
+    function fmt(d) {
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+
+    var url = 'https://api01.nve.no/hydrology/forecast/avalanche/v6.3.0/api/AvalancheWarningByCoordinates/Simple/'
+      + lat.toFixed(4) + '/' + lon.toFixed(4) + '/1/' + fmt(today) + '/' + fmt(endDate);
+
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.length) {
+          showVarsomError();
+          return;
+        }
+        updateVarsomWidget(data);
+      })
+      .catch(function() { showVarsomError(); });
+  }
+
+  // Re-fetch forecast when panning to a different region
+  var varsomCheckTimer = null;
+  map.on('moveend', function() {
+    if (!varsomControl) return;
+    clearTimeout(varsomCheckTimer);
+    varsomCheckTimer = setTimeout(function() {
+      var c = map.getCenter();
+      var today = new Date();
+      var fmt = function(d) {
+        return d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
+      };
+      var checkUrl = 'https://api01.nve.no/hydrology/forecast/avalanche/v6.3.0/api/AvalancheWarningByCoordinates/Simple/'
+        + c.lat.toFixed(4) + '/' + c.lng.toFixed(4) + '/1/' + fmt(today) + '/' + fmt(today);
+      fetch(checkUrl)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.length) {
+            if (varsomRegion) showVarsomError();
+            return;
+          }
+          var newRegion = data[0].RegionName || null;
+          if (newRegion !== varsomRegion) {
+            queryVarsomForecast(c.lat, c.lng);
+          }
+        })
+        .catch(function() {});
+    }, 800);
+  });
+
+  function showVarsomError() {
+    varsomRegion = null;
+    var icon = document.getElementById('varsom-badge-icon');
+    icon.src = DANGER_ICON_URL + '0.svg';
+    icon.alt = 'Ikke vurdert';
+    document.getElementById('varsom-badge-region').textContent = 'Ingen varsel';
+    document.getElementById('varsom-badge-label').textContent = '';
+  }
+
+  function updateVarsomWidget(warnings) {
+    var first = warnings[0];
+    var level = parseInt(first.DangerLevel) || 0;
+    varsomRegion = first.RegionName || null;
+
+    // Badge
+    var icon = document.getElementById('varsom-badge-icon');
+    icon.src = DANGER_ICON_URL + level + '.svg';
+    icon.alt = DANGER_LABELS[level] || '';
+
+    document.getElementById('varsom-badge-region').textContent = first.RegionName || '';
+    document.getElementById('varsom-badge-label').textContent = level + ' ' + (DANGER_LABELS[level] || '');
+
+    // Day cards
+    var daysContainer = document.getElementById('varsom-days');
+    daysContainer.textContent = '';
+
+    warnings.forEach(function(w) {
+      var dl = parseInt(w.DangerLevel) || 0;
+      var d = new Date(w.ValidFrom);
+
+      var dayCard = createEl('div', 'varsom-day');
+      dayCard.title = DANGER_LABELS[dl] || '';
+      dayCard.appendChild(createEl('span', 'day-name', DAY_NAMES[d.getDay()]));
+      dayCard.appendChild(dangerIcon(dl));
+      dayCard.appendChild(createEl('span', 'day-date', d.getDate() + '/' + (d.getMonth() + 1)));
+      daysContainer.appendChild(dayCard);
+    });
+
+    // Main text
+    document.getElementById('varsom-maintext').textContent = first.MainText || '';
+  }
+})();
+</script>
+</body>
+</html>
