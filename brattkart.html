@@ -52,6 +52,19 @@
   .legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 0.75rem; }
   .legend-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
+  #intro-section {
+    padding: 24px 20px; background: #16213e; border-bottom: 2px solid #0f3460;
+    max-width: 640px; margin: 0 auto;
+  }
+  #intro-section h3 { color: #e94560; margin-bottom: 12px; font-size: 1.05rem; }
+  #intro-section p { color: #ccc; font-size: 0.88rem; line-height: 1.6; margin-bottom: 10px; }
+  #intro-section ul { color: #ccc; font-size: 0.85rem; line-height: 1.7; margin: 0 0 16px 18px; }
+  #intro-section .example-btn {
+    background: none; color: #e94560; border: 1px solid #e94560; border-radius: 6px;
+    padding: 8px 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  }
+  #intro-section .example-btn:hover { background: rgba(233, 69, 96, 0.12); }
+
   #stats-section {
     display: none; padding: 16px 20px; background: #16213e;
     border-bottom: 2px solid #0f3460;
@@ -136,6 +149,16 @@
   <div id="map"></div>
   <button class="btn map-load-btn" onclick="document.getElementById('file-input').click()">Last inn GPX</button>
   <div class="drop-overlay" id="drop-overlay">Slipp GPX-fil her</div>
+</div>
+
+<div id="intro-section">
+  <h3>Velkommen til Brattkart</h3>
+  <p>Analyser toppturer med fokus på bratthet og skredfare.</p>
+  <ul>
+    <li>Trykk <strong>Last inn GPX</strong> eller dra en GPX-fil over kartet</li>
+    <li>Se høydeprofil, bratthet og tid eller distanse i skredutsatt terreng</li>
+  </ul>
+  <button class="example-btn" id="load-example-btn">Last inn eksempeltur (Mugnetinden)</button>
 </div>
 
 <div id="stats-section">
@@ -301,6 +324,135 @@
     if (this.files[0]) loadFile(this.files[0]);
   });
 
+  // Load default GPX on startup
+  var defaultGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="fabulator:gpx-builder" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Topptur på ski til Mugnetinden</name>
+    <copyright author="UT.no">
+      <year>2026</year>
+      <license>http://creativecommons.org/licenses/by-nc/4.0/deed.no</license>
+    </copyright>
+    <link href="https://ut.no"></link>
+  </metadata>
+  <trk>
+    <trkseg>
+      <trkpt lat="61.25381" lon="8.75782"><ele>761</ele></trkpt>
+      <trkpt lat="61.25365" lon="8.75701"><ele>764</ele></trkpt>
+      <trkpt lat="61.25354" lon="8.75654"><ele>765</ele></trkpt>
+      <trkpt lat="61.25351" lon="8.75643"><ele>765</ele></trkpt>
+      <trkpt lat="61.25329" lon="8.75575"><ele>769</ele></trkpt>
+      <trkpt lat="61.25317" lon="8.75544"><ele>770</ele></trkpt>
+      <trkpt lat="61.25293" lon="8.75483"><ele>774</ele></trkpt>
+      <trkpt lat="61.25264" lon="8.75438"><ele>777</ele></trkpt>
+      <trkpt lat="61.25244" lon="8.7537"><ele>779</ele></trkpt>
+      <trkpt lat="61.25233" lon="8.75248"><ele>790</ele></trkpt>
+      <trkpt lat="61.25216" lon="8.75163"><ele>799</ele></trkpt>
+      <trkpt lat="61.25205" lon="8.75064"><ele>802</ele></trkpt>
+      <trkpt lat="61.25204" lon="8.75054"><ele>803</ele></trkpt>
+      <trkpt lat="61.25198" lon="8.74969"><ele>808</ele></trkpt>
+      <trkpt lat="61.25189" lon="8.74919"><ele>811</ele></trkpt>
+      <trkpt lat="61.25181" lon="8.74897"><ele>811</ele></trkpt>
+      <trkpt lat="61.25167" lon="8.74876"><ele>812</ele></trkpt>
+      <trkpt lat="61.25119" lon="8.74837"><ele>812</ele></trkpt>
+      <trkpt lat="61.25071" lon="8.74783"><ele>818</ele></trkpt>
+      <trkpt lat="61.2505" lon="8.74767"><ele>819</ele></trkpt>
+      <trkpt lat="61.24993" lon="8.74735"><ele>823</ele></trkpt>
+      <trkpt lat="61.24958" lon="8.7471"><ele>829</ele></trkpt>
+      <trkpt lat="61.24937" lon="8.74665"><ele>833</ele></trkpt>
+      <trkpt lat="61.24923" lon="8.74623"><ele>838</ele></trkpt>
+      <trkpt lat="61.24893" lon="8.74599"><ele>840</ele></trkpt>
+      <trkpt lat="61.24873" lon="8.74568"><ele>844</ele></trkpt>
+      <trkpt lat="61.24831" lon="8.7447"><ele>853</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74417"><ele>857</ele></trkpt>
+      <trkpt lat="61.24804" lon="8.74359"><ele>859</ele></trkpt>
+      <trkpt lat="61.24799" lon="8.74273"><ele>865</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74135"><ele>872</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74048"><ele>880</ele></trkpt>
+      <trkpt lat="61.24808" lon="8.74004"><ele>882</ele></trkpt>
+      <trkpt lat="61.24787" lon="8.73867"><ele>889</ele></trkpt>
+      <trkpt lat="61.24754" lon="8.7379"><ele>889</ele></trkpt>
+      <trkpt lat="61.24746" lon="8.73725"><ele>890</ele></trkpt>
+      <trkpt lat="61.24752" lon="8.73675"><ele>892</ele></trkpt>
+      <trkpt lat="61.24768" lon="8.73614"><ele>895</ele></trkpt>
+      <trkpt lat="61.24778" lon="8.73593"><ele>896</ele></trkpt>
+      <trkpt lat="61.24804" lon="8.73563"><ele>899</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.73545"><ele>901</ele></trkpt>
+      <trkpt lat="61.24825" lon="8.73447"><ele>907</ele></trkpt>
+      <trkpt lat="61.24828" lon="8.73381"><ele>911</ele></trkpt>
+      <trkpt lat="61.24844" lon="8.73271"><ele>915</ele></trkpt>
+      <trkpt lat="61.24857" lon="8.73221"><ele>921</ele></trkpt>
+      <trkpt lat="61.24855" lon="8.73187"><ele>922</ele></trkpt>
+      <trkpt lat="61.2483" lon="8.73147"><ele>926</ele></trkpt>
+      <trkpt lat="61.24821" lon="8.7312"><ele>928</ele></trkpt>
+      <trkpt lat="61.24816" lon="8.73063"><ele>928</ele></trkpt>
+      <trkpt lat="61.2482" lon="8.73015"><ele>931</ele></trkpt>
+      <trkpt lat="61.24868" lon="8.72829"><ele>936</ele></trkpt>
+      <trkpt lat="61.24906" lon="8.72711"><ele>942</ele></trkpt>
+      <trkpt lat="61.2496" lon="8.72635"><ele>944</ele></trkpt>
+      <trkpt lat="61.24965" lon="8.72618"><ele>944</ele></trkpt>
+      <trkpt lat="61.24964" lon="8.7256"><ele>946</ele></trkpt>
+      <trkpt lat="61.24929" lon="8.72383"><ele>952</ele></trkpt>
+      <trkpt lat="61.24927" lon="8.72354"><ele>952</ele></trkpt>
+      <trkpt lat="61.24998" lon="8.71905"><ele>952</ele></trkpt>
+      <trkpt lat="61.24997" lon="8.71901"><ele>953</ele></trkpt>
+      <trkpt lat="61.24957" lon="8.7173"><ele>967</ele></trkpt>
+      <trkpt lat="61.2492" lon="8.71515"><ele>981</ele></trkpt>
+      <trkpt lat="61.24879" lon="8.71189"><ele>1004</ele></trkpt>
+      <trkpt lat="61.2479" lon="8.7103"><ele>1026</ele></trkpt>
+      <trkpt lat="61.2465" lon="8.70811"><ele>1067</ele></trkpt>
+      <trkpt lat="61.24541" lon="8.70706"><ele>1097</ele></trkpt>
+      <trkpt lat="61.24432" lon="8.70601"><ele>1131</ele></trkpt>
+      <trkpt lat="61.24327" lon="8.70517"><ele>1153</ele></trkpt>
+      <trkpt lat="61.24222" lon="8.70433"><ele>1175</ele></trkpt>
+      <trkpt lat="61.24117" lon="8.70349"><ele>1170</ele></trkpt>
+      <trkpt lat="61.24053" lon="8.70057"><ele>1188</ele></trkpt>
+      <trkpt lat="61.24105" lon="8.69744"><ele>1216</ele></trkpt>
+      <trkpt lat="61.24152" lon="8.69409"><ele>1228</ele></trkpt>
+      <trkpt lat="61.24188" lon="8.69233"><ele>1239</ele></trkpt>
+      <trkpt lat="61.24224" lon="8.69057"><ele>1245</ele></trkpt>
+      <trkpt lat="61.24308" lon="8.68945"><ele>1262</ele></trkpt>
+      <trkpt lat="61.24392" lon="8.68833"><ele>1266</ele></trkpt>
+      <trkpt lat="61.24516" lon="8.68679"><ele>1270</ele></trkpt>
+      <trkpt lat="61.24557" lon="8.68413"><ele>1277</ele></trkpt>
+      <trkpt lat="61.2458" lon="8.68117"><ele>1295</ele></trkpt>
+      <trkpt lat="61.24568" lon="8.67812"><ele>1335</ele></trkpt>
+      <trkpt lat="61.24521" lon="8.6761"><ele>1383</ele></trkpt>
+      <trkpt lat="61.24401" lon="8.67425"><ele>1403</ele></trkpt>
+      <trkpt lat="61.24279" lon="8.6724"><ele>1430</ele></trkpt>
+      <trkpt lat="61.24252" lon="8.66983"><ele>1436</ele></trkpt>
+      <trkpt lat="61.2424" lon="8.66781"><ele>1463</ele></trkpt>
+      <trkpt lat="61.24228" lon="8.66579"><ele>1475</ele></trkpt>
+      <trkpt lat="61.24221" lon="8.66375"><ele>1468</ele></trkpt>
+      <trkpt lat="61.24214" lon="8.66171"><ele>1459</ele></trkpt>
+      <trkpt lat="61.24207" lon="8.65967"><ele>1467</ele></trkpt>
+      <trkpt lat="61.242" lon="8.65763"><ele>1490</ele></trkpt>
+      <trkpt lat="61.24215" lon="8.65574"><ele>1490</ele></trkpt>
+      <trkpt lat="61.2423" lon="8.65385"><ele>1490</ele></trkpt>
+      <trkpt lat="61.24256" lon="8.65128"><ele>1506</ele></trkpt>
+      <trkpt lat="61.24282" lon="8.64871"><ele>1526</ele></trkpt>
+      <trkpt lat="61.24332" lon="8.64888"><ele>1541</ele></trkpt>
+      <trkpt lat="61.24382" lon="8.6497"><ele>1550</ele></trkpt>
+      <trkpt lat="61.24434" lon="8.65086"><ele>1559</ele></trkpt>
+      <trkpt lat="61.2451" lon="8.65245"><ele>1568</ele></trkpt>
+      <trkpt lat="61.24595" lon="8.65369"><ele>1580</ele></trkpt>
+      <trkpt lat="61.24706" lon="8.65418"><ele>1591</ele></trkpt>
+      <trkpt lat="61.24823" lon="8.65416"><ele>1626</ele></trkpt>
+      <trkpt lat="61.24953" lon="8.65388"><ele>1647</ele></trkpt>
+      <trkpt lat="61.25007" lon="8.65377"><ele>1662</ele></trkpt>
+      <trkpt lat="61.25033" lon="8.65433"><ele>1672</ele></trkpt>
+      <trkpt lat="61.25045" lon="8.6554"><ele>1678</ele></trkpt>
+      <trkpt lat="61.25045" lon="8.65712"><ele>1690</ele></trkpt>
+      <trkpt lat="61.25041" lon="8.65905"><ele>1713</ele></trkpt>
+      <trkpt lat="61.25029" lon="8.66136"><ele>1727</ele></trkpt>
+      <trkpt lat="61.25017" lon="8.66367"><ele>1732</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+  document.getElementById('load-example-btn').addEventListener('click', function() {
+    processGPX(defaultGpx);
+  });
+
   function loadFile(file) {
     var reader = new FileReader();
     reader.onload = function(e) { processGPX(e.target.result); };
@@ -308,6 +460,7 @@
   }
 
   function processGPX(gpxString) {
+    document.getElementById('intro-section').style.display = 'none';
     if (trackOutline) { map.removeLayer(trackOutline); trackOutline = null; }
     if (currentTrack) map.removeLayer(currentTrack);
     if (hoverMarker) { map.removeLayer(hoverMarker); hoverMarker = null; }
