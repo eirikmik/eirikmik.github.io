@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brattkart - GPX-sporvisning med bratthetskart</title>
+<meta name="description" content="Visualiser GPX-spor på kart med bratthetslag, høydeprofil og skredvarsel. Dra og slipp GPX-filer for å analysere turer i bratt terreng.">
+<meta property="og:title" content="Brattkart - GPX-sporvisning med bratthetskart">
+<meta property="og:description" content="Visualiser GPX-spor på kart med bratthetslag, høydeprofil og skredvarsel. Dra og slipp GPX-filer for å analysere turer i bratt terreng.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://eirikmik.github.io/brattkart.html">
+<meta property="og:locale" content="nb_NO">
+<meta property="og:image" content="https://eirikmik.github.io/brattkart-og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+
+  #file-input { display: none; }
+  .map-load-btn {
+    position: absolute; top: 10px; right: 50px; z-index: 900;
+    background: #fff; color: #333; border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px; padding: 0 10px; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600;
+    height: 36px; line-height: 36px;
+    box-shadow: none;
+  }
+  .map-load-btn:hover { background: #f4f4f4; }
+
+  #map-container { position: relative; height: 72vh; border-bottom: 2px solid #0f3460; }
+  #map { height: 100%; width: 100%; }
+
+  .drop-overlay {
+    display: none; position: absolute; inset: 0; z-index: 1000;
+    background: rgba(233, 69, 96, 0.15); border: 3px dashed #e94560;
+    justify-content: center; align-items: center;
+    font-size: 1.4rem; color: #e94560; font-weight: 700; pointer-events: none;
+  }
+  .drop-overlay.active { display: flex; }
+
+  .map-overlay-control {
+    background: rgba(22, 33, 62, 0.95); border-radius: 8px;
+    border: 1px solid #0f3460; color: #e0e0e0; font-size: 0.8rem;
+    pointer-events: auto;
+  }
+
+  .avalanche-control { padding: 10px 14px; min-width: 180px; }
+  .avalanche-control h4 {
+    margin: 0; color: #e94560; font-size: 0.85rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    user-select: none;
+  }
+  .avalanche-control h4::after { content: '\25B2'; font-size: 0.6rem; }
+  .avalanche-control.collapsed h4::after { content: '\25BC'; }
+  .avalanche-control .ava-body { margin-top: 8px; }
+  .avalanche-control.collapsed .ava-body { display: none; }
+  .avalanche-control input[type=range] { width: 100%; margin-top: 4px; accent-color: #e94560; }
+  .opacity-row { margin-bottom: 8px; }
+  .opacity-row span { font-size: 0.75rem; color: #999; }
+  .legend { margin-top: 8px; border-top: 1px solid #333; padding-top: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 0.75rem; }
+  .legend-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  #intro-section {
+    padding: 24px 20px; background: #16213e; border-bottom: 2px solid #0f3460;
+    max-width: 640px; margin: 0 auto;
+  }
+  #intro-section h3 { color: #e94560; margin-bottom: 12px; font-size: 1.05rem; }
+  #intro-section p { color: #ccc; font-size: 0.88rem; line-height: 1.6; margin-bottom: 10px; }
+  #intro-section ul { color: #ccc; font-size: 0.85rem; line-height: 1.7; margin: 0 0 16px 18px; }
+  #intro-section .example-btn {
+    background: none; color: #e94560; border: 1px solid #e94560; border-radius: 6px;
+    padding: 8px 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  }
+  #intro-section .example-btn:hover { background: rgba(233, 69, 96, 0.12); }
+
+  #stats-section {
+    display: none; padding: 16px 20px; background: #16213e;
+    border-bottom: 2px solid #0f3460;
+  }
+  #stats-section h3 { color: #e94560; margin-bottom: 10px; font-size: 0.95rem; }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;
+  }
+  .stat-card {
+    background: #1a1a2e; padding: 10px 14px; border-radius: 8px; border: 1px solid #0f3460;
+  }
+  .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+  .stat-value { font-size: 1.1rem; font-weight: 700; color: #fff; margin-top: 2px; }
+
+  .zone-group { display: none; margin-top: 14px; }
+  .zone-group h4 { color: #e94560; font-size: 0.85rem; margin-bottom: 8px; }
+  .zone-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+  .zone-card {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid #0f3460;
+    flex: 1; min-width: 120px;
+  }
+  .zone-card .stat-label { color: #ccc; }
+  .zone-card .stat-value { font-size: 1rem; }
+
+  #chart-section { display: none; padding: 16px 20px; background: #1a1a2e; }
+  #chart-section h3 { color: #e94560; margin-bottom: 10px; font-size: 0.95rem; }
+  .chart-container { position: relative; height: 200px; width: 100%; }
+
+  .varsom-control {
+    cursor: pointer; user-select: none;
+  }
+  .varsom-badge {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  }
+  .varsom-badge .region-name { font-size: 0.75rem; color: #ccc; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .varsom-badge .danger-label { font-size: 0.7rem; color: #999; }
+  .danger-icon { width: 32px; height: 30px; flex-shrink: 0; }
+  .varsom-badge .danger-icon { width: 36px; height: 34px; }
+  .varsom-expanded {
+    display: none; padding: 10px 12px; border-top: 1px solid #0f3460;
+    position: relative;
+  }
+  .varsom-control.open .varsom-expanded { display: block; }
+  .varsom-control.open { cursor: default; }
+  .varsom-close {
+    position: absolute; top: 6px; right: 6px; background: none; border: none;
+    color: #888; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; line-height: 1;
+  }
+  .varsom-close:hover { color: #e0e0e0; }
+  .varsom-days {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .varsom-day {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.05);
+    min-width: 52px;
+  }
+  .varsom-day .day-name { font-size: 0.7rem; color: #aaa; text-transform: capitalize; }
+  .varsom-day .day-date { font-size: 0.65rem; color: #777; }
+  .varsom-maintext {
+    font-size: 0.72rem; color: #bbb; line-height: 1.4;
+    max-height: 100px; overflow-y: auto; border-top: 1px solid #333;
+    padding-top: 6px; margin-top: 4px;
+  }
+
+  .terrain-toggle {
+    position: absolute; bottom: 30px; right: 10px; z-index: 800;
+    background: rgba(22, 33, 62, 0.95); border: 1px solid #0f3460;
+    border-radius: 8px; padding: 6px 12px; color: #e0e0e0;
+    font-size: 0.75rem; cursor: pointer; user-select: none;
+  }
+  .terrain-toggle:hover { background: rgba(22, 33, 62, 1); }
+  .terrain-toggle.active { border-color: #e94560; }
+
+  .layer-switcher {
+    position: absolute; top: 10px; left: 10px; z-index: 800;
+  }
+  .layer-switcher select {
+    background: #fff; color: #333; border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px; padding: 6px 10px; font-size: 0.8rem;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<input type="file" id="file-input" accept=".gpx" />
+
+<div id="map-container">
+  <div id="map"></div>
+  <button class="btn map-load-btn" onclick="document.getElementById('file-input').click()">Last inn GPX</button>
+  <div class="drop-overlay" id="drop-overlay">Slipp GPX-fil her</div>
+  <div class="layer-switcher">
+    <select id="base-layer-select">
+      <option value="kartverket">Kartverket Topo</option>
+      <option value="opentopo">OpenTopoMap</option>
+    </select>
+  </div>
+  <button class="terrain-toggle active" id="terrain-toggle">3D Terreng</button>
+</div>
+
+<div id="intro-section">
+  <h3>Velkommen til Brattkart</h3>
+  <p>Analyser toppturer med fokus på bratthet og skredfare.</p>
+  <ul>
+    <li>Trykk <strong>Last inn GPX</strong> eller dra en GPX-fil over kartet</li>
+    <li>Se høydeprofil, bratthet og tid eller distanse i skredutsatt terreng</li>
+  </ul>
+  <button class="example-btn" id="load-example-btn">Last inn eksempeltur (Mugnetinden)</button>
+</div>
+
+<div id="stats-section">
+  <h3>Turstatistikk</h3>
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="zone-group" id="zone-group">
+    <h4>Tid i soner</h4>
+    <div class="zone-cards" id="zone-cards"></div>
+  </div>
+</div>
+
+<div id="chart-section">
+  <h3>Høydeprofil</h3>
+  <div class="chart-container"><canvas id="elevation-chart"></canvas></div>
+  <div id="avalanche-loading" style="display:none; padding: 6px 0; font-size: 0.8rem; color: #999;">Henter skreddata...</div>
+</div>
+
+<div id="contact-section" style="padding: 16px 20px; background: #16213e; border-top: 2px solid #0f3460; text-align: center;">
+  <p style="color: #999; font-size: 0.8rem; margin: 0;">Spørsmål, ris og ros kan sendes til <a href="mailto:codito.apps+brattkart@pm.me?subject=Brattkart" style="color: #e94560; text-decoration: none;">codito.apps@pm.me</a></p>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3/dist/pmtiles.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+(function() {
+  // DOM helpers
+  function el(tag, className, text) {
+    var e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  // Register PMTiles protocol
+  var pmtilesProtocol = new pmtiles.Protocol();
+  maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
+
+  // Use local path for development, GitHub Releases URL for production
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  var TERRAIN_TILES_URL = isLocal
+    ? 'pmtiles://http://localhost:8080/data/output/norway-terrain.pmtiles'
+    : 'pmtiles://https://github.com/eirikmik/gpx-viewer/releases/download/terrain-v0.1/norway-terrain.pmtiles';
+
+  var map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      sources: {
+        'kartverket': {
+          type: 'raster',
+          tiles: ['https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'],
+          tileSize: 256,
+          maxzoom: 18,
+          attribution: '&copy; <a href="https://kartverket.no">Kartverket</a>'
+        },
+        'opentopo': {
+          type: 'raster',
+          tiles: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png', 'https://b.tile.opentopomap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 17,
+          attribution: '&copy; OpenTopoMap'
+        },
+        'terrain-dem': {
+          type: 'raster-dem',
+          url: TERRAIN_TILES_URL,
+          tileSize: 256,
+          maxzoom: 12,
+          encoding: 'mapbox'
+        },
+        'avalanche-wms': {
+          type: 'raster',
+          tiles: [
+            'https://gis3.nve.no/arcgis/services/wmts/Bratthet_med_utlop_2024/MapServer/WMSServer?service=WMS&request=GetMap&version=1.1.1&layers=6,7,8,9&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}'
+          ],
+          tileSize: 256
+        }
+      },
+      layers: [
+        { id: 'kartverket-layer', type: 'raster', source: 'kartverket' },
+        { id: 'opentopo-layer', type: 'raster', source: 'opentopo', layout: { visibility: 'none' } },
+        { id: 'avalanche-layer', type: 'raster', source: 'avalanche-wms', paint: { 'raster-opacity': 0.6 } }
+      ],
+      terrain: {
+        source: 'terrain-dem',
+        exaggeration: 1.3
+      }
+    },
+    center: [10, 62.5],
+    zoom: 6,
+    pitch: 45,
+    maxPitch: 85
+  });
+
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+  // Layer switcher
+  document.getElementById('base-layer-select').addEventListener('change', function() {
+    if (this.value === 'kartverket') {
+      map.setLayoutProperty('kartverket-layer', 'visibility', 'visible');
+      map.setLayoutProperty('opentopo-layer', 'visibility', 'none');
+    } else {
+      map.setLayoutProperty('kartverket-layer', 'visibility', 'none');
+      map.setLayoutProperty('opentopo-layer', 'visibility', 'visible');
+    }
+  });
+
+  // 3D terrain toggle
+  var terrainEnabled = true;
+  document.getElementById('terrain-toggle').addEventListener('click', function() {
+    terrainEnabled = !terrainEnabled;
+    this.classList.toggle('active', terrainEnabled);
+    if (terrainEnabled) {
+      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.3 });
+      map.setSky({
+        'sky-color': '#4a90d9',
+        'sky-horizon-blend': 0.5,
+        'horizon-color': '#c5ddf0',
+        'horizon-fog-blend': 0.5,
+        'fog-color': '#d0e4f0',
+        'fog-ground-blend': 0.7
+      });
+      map.easeTo({ pitch: 45, duration: 500 });
+    } else {
+      map.setTerrain(null);
+      map.setSky({});
+      map.easeTo({ pitch: 0, duration: 500 });
+    }
+  });
+
+  // Locate control
+  map.addControl(new maplibregl.GeolocateControl({
+    positionOptions: { enableHighAccuracy: true },
+    trackUserLocation: false,
+    showUserLocation: true
+  }), 'top-right');
+
+  // Prevent map from stealing pointer events on overlay controls
+  function stopMapEvents(element) {
+    ['mousedown', 'touchstart', 'pointerdown', 'dblclick', 'wheel'].forEach(function(evt) {
+      element.addEventListener(evt, function(e) { e.stopPropagation(); });
+    });
+  }
+
+  // Avalanche control
+  function buildAvalancheControl() {
+    var cls = 'map-overlay-control avalanche-control' + (window.innerWidth < 768 ? ' collapsed' : '');
+    var div = el('div', cls);
+    var h4 = el('h4', null, 'Skredterreng');
+    h4.addEventListener('click', function() { div.classList.toggle('collapsed'); });
+    div.appendChild(h4);
+
+    var body = el('div', 'ava-body');
+    var opRow = el('div', 'opacity-row');
+    opRow.appendChild(el('span', null, 'Gjennomsiktighet'));
+    var slider = document.createElement('input');
+    slider.type = 'range'; slider.id = 'ava-opacity';
+    slider.min = '0'; slider.max = '1'; slider.step = '0.05'; slider.value = '0.6';
+    slider.addEventListener('input', function() {
+      map.setPaintProperty('avalanche-layer', 'raster-opacity', parseFloat(this.value));
+    });
+    opRow.appendChild(slider);
+    body.appendChild(opRow);
+
+    var legend = el('div', 'legend');
+    var items = [
+      ['#e31a1c', 'L\u00f8sneomr\u00e5de (\u226530\u00b0)'],
+      ['#ffcc00', 'L\u00f8sneomr\u00e5de (bratt)'],
+      ['#33a02c', 'Utl\u00f8psomr\u00e5de (27-30\u00b0)'],
+      ['#6baed6', 'Utl\u00f8pssone (kort)'],
+      ['#3182bd', 'Utl\u00f8pssone (middels)'],
+      ['#08519c', 'Utl\u00f8pssone (lang)']
+    ];
+    items.forEach(function(item) {
+      var row = el('div', 'legend-item');
+      var swatch = el('div', 'legend-swatch');
+      swatch.style.background = item[0];
+      row.appendChild(swatch);
+      row.appendChild(document.createTextNode(item[1]));
+      legend.appendChild(row);
+    });
+    body.appendChild(legend);
+    div.appendChild(body);
+    stopMapEvents(div);
+    return div;
+  }
+
+  map.on('load', function() {
+    map.setSky({
+      'sky-color': '#4a90d9',
+      'sky-horizon-blend': 0.5,
+      'horizon-color': '#c5ddf0',
+      'horizon-fog-blend': 0.5,
+      'fog-color': '#d0e4f0',
+      'fog-ground-blend': 0.7
+    });
+
+    var topRight = document.querySelector('.maplibregl-ctrl-top-right');
+    if (topRight) topRight.appendChild(buildAvalancheControl());
+  });
+
+  // State
+  var currentTrackSourceAdded = false;
+  var hoverMarker = null;
+  var elevationChart = null;
+  var trackCoords = [];
+  var trackTimes = [];
+  var terrainPerPoint = null;
+
+  // Drag and drop
+  var mapContainer = document.getElementById('map-container');
+  var dropOverlay = document.getElementById('drop-overlay');
+
+  ['dragenter', 'dragover'].forEach(function(evt) {
+    mapContainer.addEventListener(evt, function(e) { e.preventDefault(); dropOverlay.classList.add('active'); });
+  });
+  ['dragleave', 'drop'].forEach(function(evt) {
+    mapContainer.addEventListener(evt, function() { dropOverlay.classList.remove('active'); });
+  });
+  mapContainer.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.gpx')) loadFile(file);
+  });
+
+  document.getElementById('file-input').addEventListener('change', function() {
+    if (this.files[0]) loadFile(this.files[0]);
+  });
+
+  // Default GPX
+  var defaultGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="fabulator:gpx-builder" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Topptur p\u00e5 ski til Mugnetinden</name>
+    <copyright author="UT.no">
+      <year>2026</year>
+      <license>http://creativecommons.org/licenses/by-nc/4.0/deed.no</license>
+    </copyright>
+    <link href="https://ut.no"></link>
+  </metadata>
+  <trk>
+    <trkseg>
+      <trkpt lat="61.25381" lon="8.75782"><ele>761</ele></trkpt>
+      <trkpt lat="61.25365" lon="8.75701"><ele>764</ele></trkpt>
+      <trkpt lat="61.25354" lon="8.75654"><ele>765</ele></trkpt>
+      <trkpt lat="61.25351" lon="8.75643"><ele>765</ele></trkpt>
+      <trkpt lat="61.25329" lon="8.75575"><ele>769</ele></trkpt>
+      <trkpt lat="61.25317" lon="8.75544"><ele>770</ele></trkpt>
+      <trkpt lat="61.25293" lon="8.75483"><ele>774</ele></trkpt>
+      <trkpt lat="61.25264" lon="8.75438"><ele>777</ele></trkpt>
+      <trkpt lat="61.25244" lon="8.7537"><ele>779</ele></trkpt>
+      <trkpt lat="61.25233" lon="8.75248"><ele>790</ele></trkpt>
+      <trkpt lat="61.25216" lon="8.75163"><ele>799</ele></trkpt>
+      <trkpt lat="61.25205" lon="8.75064"><ele>802</ele></trkpt>
+      <trkpt lat="61.25204" lon="8.75054"><ele>803</ele></trkpt>
+      <trkpt lat="61.25198" lon="8.74969"><ele>808</ele></trkpt>
+      <trkpt lat="61.25189" lon="8.74919"><ele>811</ele></trkpt>
+      <trkpt lat="61.25181" lon="8.74897"><ele>811</ele></trkpt>
+      <trkpt lat="61.25167" lon="8.74876"><ele>812</ele></trkpt>
+      <trkpt lat="61.25119" lon="8.74837"><ele>812</ele></trkpt>
+      <trkpt lat="61.25071" lon="8.74783"><ele>818</ele></trkpt>
+      <trkpt lat="61.2505" lon="8.74767"><ele>819</ele></trkpt>
+      <trkpt lat="61.24993" lon="8.74735"><ele>823</ele></trkpt>
+      <trkpt lat="61.24958" lon="8.7471"><ele>829</ele></trkpt>
+      <trkpt lat="61.24937" lon="8.74665"><ele>833</ele></trkpt>
+      <trkpt lat="61.24923" lon="8.74623"><ele>838</ele></trkpt>
+      <trkpt lat="61.24893" lon="8.74599"><ele>840</ele></trkpt>
+      <trkpt lat="61.24873" lon="8.74568"><ele>844</ele></trkpt>
+      <trkpt lat="61.24831" lon="8.7447"><ele>853</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74417"><ele>857</ele></trkpt>
+      <trkpt lat="61.24804" lon="8.74359"><ele>859</ele></trkpt>
+      <trkpt lat="61.24799" lon="8.74273"><ele>865</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74135"><ele>872</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.74048"><ele>880</ele></trkpt>
+      <trkpt lat="61.24808" lon="8.74004"><ele>882</ele></trkpt>
+      <trkpt lat="61.24787" lon="8.73867"><ele>889</ele></trkpt>
+      <trkpt lat="61.24754" lon="8.7379"><ele>889</ele></trkpt>
+      <trkpt lat="61.24746" lon="8.73725"><ele>890</ele></trkpt>
+      <trkpt lat="61.24752" lon="8.73675"><ele>892</ele></trkpt>
+      <trkpt lat="61.24768" lon="8.73614"><ele>895</ele></trkpt>
+      <trkpt lat="61.24778" lon="8.73593"><ele>896</ele></trkpt>
+      <trkpt lat="61.24804" lon="8.73563"><ele>899</ele></trkpt>
+      <trkpt lat="61.24813" lon="8.73545"><ele>901</ele></trkpt>
+      <trkpt lat="61.24825" lon="8.73447"><ele>907</ele></trkpt>
+      <trkpt lat="61.24828" lon="8.73381"><ele>911</ele></trkpt>
+      <trkpt lat="61.24844" lon="8.73271"><ele>915</ele></trkpt>
+      <trkpt lat="61.24857" lon="8.73221"><ele>921</ele></trkpt>
+      <trkpt lat="61.24855" lon="8.73187"><ele>922</ele></trkpt>
+      <trkpt lat="61.2483" lon="8.73147"><ele>926</ele></trkpt>
+      <trkpt lat="61.24821" lon="8.7312"><ele>928</ele></trkpt>
+      <trkpt lat="61.24816" lon="8.73063"><ele>928</ele></trkpt>
+      <trkpt lat="61.2482" lon="8.73015"><ele>931</ele></trkpt>
+      <trkpt lat="61.24868" lon="8.72829"><ele>936</ele></trkpt>
+      <trkpt lat="61.24906" lon="8.72711"><ele>942</ele></trkpt>
+      <trkpt lat="61.2496" lon="8.72635"><ele>944</ele></trkpt>
+      <trkpt lat="61.24965" lon="8.72618"><ele>944</ele></trkpt>
+      <trkpt lat="61.24964" lon="8.7256"><ele>946</ele></trkpt>
+      <trkpt lat="61.24929" lon="8.72383"><ele>952</ele></trkpt>
+      <trkpt lat="61.24927" lon="8.72354"><ele>952</ele></trkpt>
+      <trkpt lat="61.24998" lon="8.71905"><ele>952</ele></trkpt>
+      <trkpt lat="61.24997" lon="8.71901"><ele>953</ele></trkpt>
+      <trkpt lat="61.24957" lon="8.7173"><ele>967</ele></trkpt>
+      <trkpt lat="61.2492" lon="8.71515"><ele>981</ele></trkpt>
+      <trkpt lat="61.24879" lon="8.71189"><ele>1004</ele></trkpt>
+      <trkpt lat="61.2479" lon="8.7103"><ele>1026</ele></trkpt>
+      <trkpt lat="61.2465" lon="8.70811"><ele>1067</ele></trkpt>
+      <trkpt lat="61.24541" lon="8.70706"><ele>1097</ele></trkpt>
+      <trkpt lat="61.24432" lon="8.70601"><ele>1131</ele></trkpt>
+      <trkpt lat="61.24327" lon="8.70517"><ele>1153</ele></trkpt>
+      <trkpt lat="61.24222" lon="8.70433"><ele>1175</ele></trkpt>
+      <trkpt lat="61.24117" lon="8.70349"><ele>1170</ele></trkpt>
+      <trkpt lat="61.24053" lon="8.70057"><ele>1188</ele></trkpt>
+      <trkpt lat="61.24105" lon="8.69744"><ele>1216</ele></trkpt>
+      <trkpt lat="61.24152" lon="8.69409"><ele>1228</ele></trkpt>
+      <trkpt lat="61.24188" lon="8.69233"><ele>1239</ele></trkpt>
+      <trkpt lat="61.24224" lon="8.69057"><ele>1245</ele></trkpt>
+      <trkpt lat="61.24308" lon="8.68945"><ele>1262</ele></trkpt>
+      <trkpt lat="61.24392" lon="8.68833"><ele>1266</ele></trkpt>
+      <trkpt lat="61.24516" lon="8.68679"><ele>1270</ele></trkpt>
+      <trkpt lat="61.24557" lon="8.68413"><ele>1277</ele></trkpt>
+      <trkpt lat="61.2458" lon="8.68117"><ele>1295</ele></trkpt>
+      <trkpt lat="61.24568" lon="8.67812"><ele>1335</ele></trkpt>
+      <trkpt lat="61.24521" lon="8.6761"><ele>1383</ele></trkpt>
+      <trkpt lat="61.24401" lon="8.67425"><ele>1403</ele></trkpt>
+      <trkpt lat="61.24279" lon="8.6724"><ele>1430</ele></trkpt>
+      <trkpt lat="61.24252" lon="8.66983"><ele>1436</ele></trkpt>
+      <trkpt lat="61.2424" lon="8.66781"><ele>1463</ele></trkpt>
+      <trkpt lat="61.24228" lon="8.66579"><ele>1475</ele></trkpt>
+      <trkpt lat="61.24221" lon="8.66375"><ele>1468</ele></trkpt>
+      <trkpt lat="61.24214" lon="8.66171"><ele>1459</ele></trkpt>
+      <trkpt lat="61.24207" lon="8.65967"><ele>1467</ele></trkpt>
+      <trkpt lat="61.242" lon="8.65763"><ele>1490</ele></trkpt>
+      <trkpt lat="61.24215" lon="8.65574"><ele>1490</ele></trkpt>
+      <trkpt lat="61.2423" lon="8.65385"><ele>1490</ele></trkpt>
+      <trkpt lat="61.24256" lon="8.65128"><ele>1506</ele></trkpt>
+      <trkpt lat="61.24282" lon="8.64871"><ele>1526</ele></trkpt>
+      <trkpt lat="61.24332" lon="8.64888"><ele>1541</ele></trkpt>
+      <trkpt lat="61.24382" lon="8.6497"><ele>1550</ele></trkpt>
+      <trkpt lat="61.24434" lon="8.65086"><ele>1559</ele></trkpt>
+      <trkpt lat="61.2451" lon="8.65245"><ele>1568</ele></trkpt>
+      <trkpt lat="61.24595" lon="8.65369"><ele>1580</ele></trkpt>
+      <trkpt lat="61.24706" lon="8.65418"><ele>1591</ele></trkpt>
+      <trkpt lat="61.24823" lon="8.65416"><ele>1626</ele></trkpt>
+      <trkpt lat="61.24953" lon="8.65388"><ele>1647</ele></trkpt>
+      <trkpt lat="61.25007" lon="8.65377"><ele>1662</ele></trkpt>
+      <trkpt lat="61.25033" lon="8.65433"><ele>1672</ele></trkpt>
+      <trkpt lat="61.25045" lon="8.6554"><ele>1678</ele></trkpt>
+      <trkpt lat="61.25045" lon="8.65712"><ele>1690</ele></trkpt>
+      <trkpt lat="61.25041" lon="8.65905"><ele>1713</ele></trkpt>
+      <trkpt lat="61.25029" lon="8.66136"><ele>1727</ele></trkpt>
+      <trkpt lat="61.25017" lon="8.66367"><ele>1732</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+  document.getElementById('load-example-btn').addEventListener('click', function() {
+    processGPX(defaultGpx);
+  });
+
+  function loadFile(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) { processGPX(e.target.result); };
+    reader.readAsText(file);
+  }
+
+  // Parse GPX XML to coordinates array
+  function parseGPX(gpxString) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(gpxString, 'text/xml');
+    var points = [];
+    var trkpts = doc.querySelectorAll('trkpt');
+    trkpts.forEach(function(pt) {
+      var lat = parseFloat(pt.getAttribute('lat'));
+      var lon = parseFloat(pt.getAttribute('lon'));
+      var eleEl = pt.querySelector('ele');
+      var ele = eleEl ? parseFloat(eleEl.textContent) : 0;
+      var timeEl = pt.querySelector('time');
+      var time = timeEl ? new Date(timeEl.textContent).getTime() : null;
+      points.push({ lat: lat, lon: lon, ele: ele, time: time });
+    });
+    return points;
+  }
+
+  function pointsToGeoJSON(points) {
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: points.map(function(p) { return [p.lon, p.lat, p.ele]; })
+      }
+    };
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function processGPX(gpxString) {
+    document.getElementById('intro-section').style.display = 'none';
+
+    var points = parseGPX(gpxString);
+    if (points.length < 2) return;
+
+    var geojson = pointsToGeoJSON(points);
+
+    // Remove previous track layers
+    if (currentTrackSourceAdded) {
+      ['track-outline', 'track-line', 'track-start', 'track-end'].forEach(function(id) {
+        if (map.getLayer(id)) map.removeLayer(id);
+      });
+      if (map.getSource('track')) map.removeSource('track');
+      if (map.getSource('track-points')) map.removeSource('track-points');
+    }
+    if (hoverMarker) { hoverMarker.remove(); hoverMarker = null; }
+
+    // Add track source and layers
+    map.addSource('track', { type: 'geojson', data: geojson });
+    map.addSource('track-points', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', geometry: { type: 'Point', coordinates: [points[0].lon, points[0].lat] }, properties: { type: 'start' } },
+          { type: 'Feature', geometry: { type: 'Point', coordinates: [points[points.length - 1].lon, points[points.length - 1].lat] }, properties: { type: 'end' } }
+        ]
+      }
+    });
+
+    map.addLayer({
+      id: 'track-outline', type: 'line', source: 'track',
+      paint: { 'line-color': '#ffffff', 'line-width': 8, 'line-opacity': 0.9 }
+    });
+    map.addLayer({
+      id: 'track-line', type: 'line', source: 'track',
+      paint: { 'line-color': '#7b2d8e', 'line-width': 4, 'line-opacity': 0.85 }
+    });
+    map.addLayer({
+      id: 'track-start', type: 'circle', source: 'track-points',
+      filter: ['==', ['get', 'type'], 'start'],
+      paint: { 'circle-radius': 8, 'circle-color': '#33a02c', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 }
+    });
+    map.addLayer({
+      id: 'track-end', type: 'circle', source: 'track-points',
+      filter: ['==', ['get', 'type'], 'end'],
+      paint: { 'circle-radius': 8, 'circle-color': '#e31a1c', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 }
+    });
+    currentTrackSourceAdded = true;
+
+    // Fit bounds — use cameraForBounds at pitch 0, then zoom out for 3D perspective
+    var lngs = points.map(function(p) { return p.lon; });
+    var lats = points.map(function(p) { return p.lat; });
+    var bounds = [[Math.min.apply(null, lngs), Math.min.apply(null, lats)],
+                  [Math.max.apply(null, lngs), Math.max.apply(null, lats)]];
+    var cam = map.cameraForBounds(bounds, { padding: 60 });
+    if (terrainEnabled) {
+      // In pitched view the center appears in the upper half of the screen,
+      // so offset north to pull the trail down into the visual center
+      var offsetCenter = [cam.center.lng, cam.center.lat + 0.02];
+      map.flyTo({ center: offsetCenter, zoom: cam.zoom - 1.2, pitch: 50, duration: 1000 });
+    } else {
+      map.fitBounds(bounds, { padding: 60 });
+    }
+
+    populateStats(points);
+    buildElevationChart(points);
+
+    var centerLat = (Math.min.apply(null, lats) + Math.max.apply(null, lats)) / 2;
+    var centerLon = (Math.min.apply(null, lngs) + Math.max.apply(null, lngs)) / 2;
+    queryVarsomForecast(centerLat, centerLon);
+  }
+
+  function populateStats(points) {
+    var totalDist = 0, elevGain = 0, elevLoss = 0;
+    var minEle = Infinity, maxEle = -Infinity;
+    var hasTime = points[0].time !== null && points[points.length - 1].time !== null;
+    var totalTime = hasTime ? points[points.length - 1].time - points[0].time : 0;
+    var movingTime = 0, movingDist = 0;
+
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (p.ele < minEle) minEle = p.ele;
+      if (p.ele > maxEle) maxEle = p.ele;
+      if (i > 0) {
+        var d = haversine(points[i - 1].lat, points[i - 1].lon, p.lat, p.lon);
+        totalDist += d;
+        var dEle = p.ele - points[i - 1].ele;
+        if (dEle > 0) elevGain += dEle; else elevLoss -= dEle;
+        if (hasTime && p.time && points[i - 1].time) {
+          var dt = p.time - points[i - 1].time;
+          if (dt > 0 && dt < 60000) { movingTime += dt; movingDist += d; }
+        }
+      }
+    }
+
+    var grid = document.getElementById('stats-grid');
+    grid.textContent = '';
+
+    function addStat(label, value) {
+      var card = el('div', 'stat-card');
+      var lbl = el('div', 'stat-label', label);
+      var val = el('div', 'stat-value', value);
+      card.appendChild(lbl);
+      card.appendChild(val);
+      grid.appendChild(card);
+    }
+
+    addStat('Distanse', (totalDist / 1000).toFixed(2) + ' km');
+    if (hasTime && totalTime > 0) {
+      addStat('Total tid', formatDuration(totalTime));
+      addStat('Bevegelsestid', formatDuration(movingTime));
+      if (movingTime > 0) addStat('Fart i bevegelse', (movingDist / movingTime * 3600).toFixed(1) + ' km/t');
+    }
+    addStat('Stigning', elevGain.toFixed(0) + ' m');
+    addStat('Fall', elevLoss.toFixed(0) + ' m');
+    addStat('Min h\u00f8yde', minEle.toFixed(0) + ' m');
+    addStat('Maks h\u00f8yde', maxEle.toFixed(0) + ' m');
+
+    document.getElementById('stats-section').style.display = 'block';
+  }
+
+  function formatDuration(ms) {
+    var s = Math.floor(ms / 1000);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    return h > 0 ? h + 'h ' + m + 'm' : m + 'm ' + sec + 's';
+  }
+
+  function buildElevationChart(points) {
+    trackCoords = [];
+    trackTimes = [];
+    var elevData = [];
+    var cumDist = 0;
+
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (i > 0) cumDist += haversine(points[i - 1].lat, points[i - 1].lon, p.lat, p.lon);
+      trackCoords.push({ lat: p.lat, lng: p.lon });
+      trackTimes.push(p.time);
+      elevData.push({ x: cumDist / 1000, y: p.ele });
+    }
+
+    if (elevData.length === 0) return;
+
+    var ctx = document.getElementById('elevation-chart').getContext('2d');
+    if (elevationChart) elevationChart.destroy();
+
+    elevationChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: elevData,
+          borderColor: '#33a02c',
+          backgroundColor: 'rgba(51, 160, 44, 0.2)',
+          fill: true, pointRadius: 0, borderWidth: 2, tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: function(items) { return items[0] ? items[0].parsed.x.toFixed(2) + ' km' : ''; },
+              label: function(item) { return item.parsed.y.toFixed(0) + ' m'; },
+              labelColor: function(ctx) {
+                var t = terrainPerPoint ? (terrainPerPoint[ctx.dataIndex] || 'safe') : 'safe';
+                var c = TERRAIN_COLORS[t] || TERRAIN_COLORS.safe;
+                return { borderColor: c.border, backgroundColor: c.border };
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'Distanse (km)', color: '#999' },
+            ticks: { color: '#999' }, grid: { color: '#333' }
+          },
+          y: {
+            title: { display: true, text: 'H\u00f8yde (m)', color: '#999' },
+            ticks: { color: '#999' }, grid: { color: '#333' }
+          }
+        },
+        onHover: function(event, elements) {
+          if (elements.length > 0 && trackCoords.length > 0) {
+            var idx = elements[0].index;
+            if (idx < trackCoords.length) {
+              var c = trackCoords[idx];
+              if (!hoverMarker) {
+                var markerEl = document.createElement('div');
+                markerEl.style.width = '12px';
+                markerEl.style.height = '12px';
+                markerEl.style.borderRadius = '50%';
+                markerEl.style.background = '#e94560';
+                markerEl.style.border = '2px solid #fff';
+                hoverMarker = new maplibregl.Marker({ element: markerEl }).setLngLat([c.lng, c.lat]).addTo(map);
+              } else {
+                hoverMarker.setLngLat([c.lng, c.lat]);
+              }
+            }
+          }
+        },
+        interaction: { intersect: false, mode: 'index' }
+      }
+    });
+
+    document.getElementById('chart-section').style.display = 'block';
+    queryAvalancheTerrainForTrack(trackCoords, elevData);
+  }
+
+  // Avalanche terrain colors
+  var TERRAIN_COLORS = {
+    release:      { bg: 'rgba(227, 26, 28, 0.3)',  border: 'rgba(227, 26, 28, 0.8)' },
+    short_runout: { bg: 'rgba(107, 174, 214, 0.3)', border: 'rgba(107, 174, 214, 0.8)' },
+    med_runout:   { bg: 'rgba(49, 130, 189, 0.3)',  border: 'rgba(49, 130, 189, 0.8)' },
+    long_runout:  { bg: 'rgba(8, 81, 156, 0.3)',    border: 'rgba(8, 81, 156, 0.8)' },
+    safe:         { bg: 'rgba(51, 160, 44, 0.2)',    border: '#33a02c' }
+  };
+
+  function classifyIdentifyResult(data) {
+    if (!data || !data.results) return 'safe';
+    var activeLayer = {};
+    data.results.forEach(function(r) {
+      var pv = r.attributes && r.attributes['UniqueValue.Pixel Value'];
+      if (pv && pv !== '1' && pv !== 'NoData') activeLayer[r.layerId] = true;
+    });
+    if (activeLayer[1]) return 'release';
+    if (activeLayer[2]) return 'short_runout';
+    if (activeLayer[3]) return 'med_runout';
+    if (activeLayer[4]) return 'long_runout';
+    return 'safe';
+  }
+
+  function queryAvalancheTerrainForTrack(coords, elevData) {
+    if (coords.length < 2 || !elevationChart) return;
+
+    var loadingEl = document.getElementById('avalanche-loading');
+    loadingEl.style.display = 'block';
+
+    var cumDists = [0];
+    for (var i = 1; i < coords.length; i++) {
+      cumDists.push(cumDists[i - 1] + haversine(coords[i - 1].lat, coords[i - 1].lng, coords[i].lat, coords[i].lng));
+    }
+
+    var sampleInterval = 200;
+    var sampleIndices = [0];
+    var nextDist = sampleInterval;
+    for (var i = 1; i < coords.length; i++) {
+      if (cumDists[i] >= nextDist) {
+        sampleIndices.push(i);
+        nextDist = cumDists[i] + sampleInterval;
+      }
+    }
+    if (sampleIndices[sampleIndices.length - 1] !== coords.length - 1) {
+      sampleIndices.push(coords.length - 1);
+    }
+
+    var lats = coords.map(function(c) { return c.lat; });
+    var lngs = coords.map(function(c) { return c.lng; });
+    var bbox = [Math.min.apply(null, lngs), Math.min.apply(null, lats),
+                Math.max.apply(null, lngs), Math.max.apply(null, lats)].join(',');
+
+    var tasks = sampleIndices.map(function(idx) {
+      var c = coords[idx];
+      var url = 'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/identify'
+        + '?geometry=' + c.lng + ',' + c.lat
+        + '&geometryType=esriGeometryPoint&sr=4326'
+        + '&layers=all&tolerance=2'
+        + '&mapExtent=' + bbox
+        + '&imageDisplay=400,400,96'
+        + '&returnGeometry=false&f=json';
+      return { idx: idx, url: url };
+    });
+
+    var sampleResults = {};
+    var batchSize = 10;
+
+    function runBatch(start) {
+      var batch = tasks.slice(start, start + batchSize);
+      if (batch.length === 0) {
+        applyTerrainColors(sampleResults, sampleIndices, coords.length);
+        return;
+      }
+      Promise.all(batch.map(function(task) {
+        return fetch(task.url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) { sampleResults[task.idx] = classifyIdentifyResult(data); })
+          .catch(function() { sampleResults[task.idx] = 'safe'; });
+      })).then(function() { runBatch(start + batchSize); });
+    }
+
+    runBatch(0);
+
+    function applyTerrainColors(results, indices, totalPoints) {
+      terrainPerPoint = new Array(totalPoints);
+      for (var s = 0; s < indices.length; s++) {
+        var startIdx = indices[s];
+        var endIdx = s < indices.length - 1 ? indices[s + 1] : totalPoints - 1;
+        var terrain = results[startIdx] || 'safe';
+        for (var j = startIdx; j <= endIdx; j++) {
+          terrainPerPoint[j] = terrain;
+        }
+      }
+
+      var ds = elevationChart.data.datasets[0];
+      ds.segment = {
+        borderColor: function(ctx) {
+          var t = terrainPerPoint[ctx.p0DataIndex] || 'safe';
+          return TERRAIN_COLORS[t].border;
+        },
+        backgroundColor: function(ctx) {
+          var t = terrainPerPoint[ctx.p0DataIndex] || 'safe';
+          return TERRAIN_COLORS[t].bg;
+        }
+      };
+
+      elevationChart.update();
+      loadingEl.style.display = 'none';
+      addTerrainTimeStats(terrainPerPoint);
+    }
+  }
+
+  var TERRAIN_LABELS = {
+    release: 'L\u00f8sneomr\u00e5de',
+    short_runout: 'Utl\u00f8p (kort)',
+    med_runout: 'Utl\u00f8p (middels)',
+    long_runout: 'Utl\u00f8p (lang)'
+  };
+
+  var TERRAIN_CARD_COLORS = {
+    release:      { bg: 'rgba(227, 26, 28, 0.25)', border: '#e31a1c' },
+    short_runout: { bg: 'rgba(107, 174, 214, 0.25)', border: '#6baed6' },
+    med_runout:   { bg: 'rgba(49, 130, 189, 0.25)', border: '#3182bd' },
+    long_runout:  { bg: 'rgba(8, 81, 156, 0.25)', border: '#08519c' }
+  };
+
+  function addTerrainTimeStats(terrainPerPoint) {
+    var hasTime = false;
+    if (trackTimes.length > 1 && Number.isFinite(trackTimes[0]) && Number.isFinite(trackTimes[trackTimes.length - 1])) {
+      hasTime = (trackTimes[trackTimes.length - 1] - trackTimes[0]) > 60000;
+    }
+
+    var zones = ['release', 'short_runout', 'med_runout', 'long_runout'];
+    var zoneData = {};
+
+    if (hasTime) {
+      var timeMs = { release: 0, short_runout: 0, med_runout: 0, long_runout: 0 };
+      for (var i = 1; i < terrainPerPoint.length; i++) {
+        var t = terrainPerPoint[i];
+        if (t && t !== 'safe' && trackTimes[i] !== null && trackTimes[i - 1] !== null) {
+          var dt = trackTimes[i] - trackTimes[i - 1];
+          if (dt > 0 && dt < 3600000) timeMs[t] += dt;
+        }
+      }
+      zones.forEach(function(z) {
+        if (timeMs[z] > 0) zoneData[z] = formatDuration(timeMs[z]);
+      });
+    } else {
+      var distM = { release: 0, short_runout: 0, med_runout: 0, long_runout: 0 };
+      var len = Math.min(terrainPerPoint.length, trackCoords.length);
+      for (var i = 1; i < len; i++) {
+        var d = haversine(trackCoords[i - 1].lat, trackCoords[i - 1].lng, trackCoords[i].lat, trackCoords[i].lng);
+        var t = terrainPerPoint[i];
+        if (t && t !== 'safe' && distM.hasOwnProperty(t)) distM[t] += d;
+      }
+      zones.forEach(function(z) {
+        if (distM[z] > 0) {
+          zoneData[z] = distM[z] >= 1000
+            ? (distM[z] / 1000).toFixed(1) + ' km'
+            : Math.round(distM[z]) + ' m';
+        }
+      });
+    }
+
+    var container = document.getElementById('zone-cards');
+    container.textContent = '';
+    var hasAny = false;
+    zones.forEach(function(zone) {
+      if (!zoneData[zone]) return;
+      hasAny = true;
+      var card = el('div', 'zone-card');
+      card.style.background = TERRAIN_CARD_COLORS[zone].bg;
+      card.style.borderColor = TERRAIN_CARD_COLORS[zone].border;
+      card.appendChild(el('div', 'stat-label', TERRAIN_LABELS[zone]));
+      card.appendChild(el('div', 'stat-value', zoneData[zone]));
+      container.appendChild(card);
+    });
+    if (hasAny) {
+      var group = document.getElementById('zone-group');
+      group.querySelector('h4').textContent = 'Opphold i risikosoner';
+      group.style.display = 'block';
+    }
+  }
+
+  // Varsom avalanche danger widget
+  var DANGER_ICON_URL = 'https://www.varsom.no/Content/Images/AvalancheDangerLevels/level-';
+  var DANGER_LABELS = {
+    0: 'Ikke vurdert', 1: 'Liten', 2: 'Moderat', 3: 'Betydelig', 4: 'Stor', 5: 'Meget stor'
+  };
+  var DAY_NAMES = ['S\u00f8n', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'L\u00f8r'];
+
+  var varsomControlEl = null;
+  var varsomRegion = null;
+
+  function dangerImg(level, className) {
+    var img = document.createElement('img');
+    img.src = DANGER_ICON_URL + level + '.svg';
+    img.alt = DANGER_LABELS[level] || '';
+    img.className = className || 'danger-icon';
+    return img;
+  }
+
+  function createVarsomWidget() {
+    var div = el('div', 'map-overlay-control varsom-control');
+
+    var badge = el('div', 'varsom-badge');
+    var badgeIcon = dangerImg(0, 'danger-icon');
+    badgeIcon.id = 'varsom-badge-icon';
+    badge.appendChild(badgeIcon);
+
+    var badgeInfo = document.createElement('div');
+    var regionSpan = el('div', 'region-name', 'Laster...');
+    regionSpan.id = 'varsom-badge-region';
+    var labelSpan = el('div', 'danger-label');
+    labelSpan.id = 'varsom-badge-label';
+    badgeInfo.appendChild(regionSpan);
+    badgeInfo.appendChild(labelSpan);
+    badge.appendChild(badgeInfo);
+
+    var expanded = el('div', 'varsom-expanded');
+    var closeBtn = el('button', 'varsom-close', '\u00d7');
+    closeBtn.setAttribute('aria-label', 'Lukk');
+    expanded.appendChild(closeBtn);
+    var daysRow = el('div', 'varsom-days');
+    daysRow.id = 'varsom-days';
+    var mainText = el('div', 'varsom-maintext');
+    mainText.id = 'varsom-maintext';
+    expanded.appendChild(daysRow);
+    expanded.appendChild(mainText);
+
+    div.appendChild(badge);
+    div.appendChild(expanded);
+
+    badge.addEventListener('click', function() { div.classList.toggle('open'); });
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      div.classList.remove('open');
+    });
+
+    stopMapEvents(div);
+    return div;
+  }
+
+  function queryVarsomForecast(lat, lon) {
+    if (!varsomControlEl) {
+      varsomControlEl = createVarsomWidget();
+      var bottomLeft = document.querySelector('.maplibregl-ctrl-bottom-left');
+      if (bottomLeft) bottomLeft.appendChild(varsomControlEl);
+    }
+
+    var today = new Date();
+    var endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 3);
+
+    function fmt(d) {
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+
+    var url = 'https://api01.nve.no/hydrology/forecast/avalanche/v6.3.0/api/AvalancheWarningByCoordinates/Simple/'
+      + lat.toFixed(4) + '/' + lon.toFixed(4) + '/1/' + fmt(today) + '/' + fmt(endDate);
+
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.length) { showVarsomError(); return; }
+        updateVarsomWidget(data);
+      })
+      .catch(function() { showVarsomError(); });
+  }
+
+  var varsomCheckTimer = null;
+  map.on('moveend', function() {
+    if (!varsomControlEl) return;
+    clearTimeout(varsomCheckTimer);
+    varsomCheckTimer = setTimeout(function() {
+      var c = map.getCenter();
+      var today = new Date();
+      var fmt = function(d) {
+        return d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
+      };
+      var checkUrl = 'https://api01.nve.no/hydrology/forecast/avalanche/v6.3.0/api/AvalancheWarningByCoordinates/Simple/'
+        + c.lat.toFixed(4) + '/' + c.lng.toFixed(4) + '/1/' + fmt(today) + '/' + fmt(today);
+      fetch(checkUrl)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.length) {
+            if (varsomRegion) showVarsomError();
+            return;
+          }
+          var newRegion = data[0].RegionName || null;
+          if (newRegion !== varsomRegion) {
+            queryVarsomForecast(c.lat, c.lng);
+          }
+        })
+        .catch(function() {});
+    }, 800);
+  });
+
+  function showVarsomError() {
+    varsomRegion = null;
+    var icon = document.getElementById('varsom-badge-icon');
+    if (icon) { icon.src = DANGER_ICON_URL + '0.svg'; icon.alt = 'Ikke vurdert'; }
+    var region = document.getElementById('varsom-badge-region');
+    if (region) region.textContent = 'Ingen varsel';
+    var label = document.getElementById('varsom-badge-label');
+    if (label) label.textContent = '';
+  }
+
+  function updateVarsomWidget(warnings) {
+    var first = warnings[0];
+    var level = parseInt(first.DangerLevel) || 0;
+    varsomRegion = first.RegionName || null;
+
+    var icon = document.getElementById('varsom-badge-icon');
+    icon.src = DANGER_ICON_URL + level + '.svg';
+    icon.alt = DANGER_LABELS[level] || '';
+
+    document.getElementById('varsom-badge-region').textContent = first.RegionName || '';
+    document.getElementById('varsom-badge-label').textContent = level + ' ' + (DANGER_LABELS[level] || '');
+
+    var daysContainer = document.getElementById('varsom-days');
+    daysContainer.textContent = '';
+
+    warnings.forEach(function(w) {
+      var dl = parseInt(w.DangerLevel) || 0;
+      var d = new Date(w.ValidFrom);
+      var dayCard = el('div', 'varsom-day');
+      dayCard.title = DANGER_LABELS[dl] || '';
+      dayCard.appendChild(el('span', 'day-name', DAY_NAMES[d.getDay()]));
+      dayCard.appendChild(dangerImg(dl));
+      dayCard.appendChild(el('span', 'day-date', d.getDate() + '/' + (d.getMonth() + 1)));
+      daysContainer.appendChild(dayCard);
+    });
+
+    document.getElementById('varsom-maintext').textContent = first.MainText || '';
+  }
+})();
+</script>
+</body>
+</html>
