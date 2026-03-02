@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eirikmik</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 60px 20px;
+  }
+  .container {
+    max-width: 600px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+  }
+  .subtitle {
+    color: #888;
+    margin-bottom: 2.5rem;
+  }
+  h2 {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+  .projects {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .projects a {
+    display: block;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #e0e0e0;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .projects a:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .projects a .name {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .projects a .desc {
+    color: #888;
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Eirik Mikkelsen</h1>
+  <p class="subtitle">Diverse hobbyprosjekter og eksperimenter som kanskje kan være interessant for andre.</p>
+
+  <h2>Prosjekter</h2>
+  <div class="projects">
+    <a href="brattkart.html">
+      <div class="name">Brattkart</div>
+      <div class="desc">GPX-sporvisning med bratthetskart, høydeprofil og skredvarsel.</div>
+    </a>
+    <a href="brattkart3d/">
+      <div class="name">Brattkart 3D</div>
+      <div class="desc">3D-versjon av Brattkart. Har kun 3d-data for en del av Jotunheimen. Proof of concept.</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>
