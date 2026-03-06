@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brattkart - Flyttet til nytt domene</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        .countdown {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4cc9f0;
+        }
+        .domain {
+            color: #4cc9f0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Brattkart har fått sitt eget hjem!</h1>
+    <p>Du sendes straks videre til <span class="domain">www.brattkart.no</span></p>
+
+    <script>
+        setTimeout(() => {
+            window.location.href = 'https://www.brattkart.no';
+        }, 3000);
+    </script>
+</body>
+</html>
